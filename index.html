@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>知識確認ドリル</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body class="p-4 bg-gray-100">
+  <h1 class="text-2xl font-bold mb-4">建設コンサルタント業務 知識確認ドリル</h1>
+
+  <div>
+    <select id="csv-selector" class="border p-2">
+      <option value="4-1.csv">4-1.csv</option>
+      <option value="4-2.csv">4-2.csv</option>
+    </select>
+    <button id="load-btn" class="bg-blue-500 text-white p-2 rounded">読み込み</button>
+  </div>
+
+  <div id="quiz-container" class="mt-6 space-y-6"></div>
+
+  <audio id="sound-correct" src="ping.mp3"></audio>
+  <audio id="sound-wrong" src="buzzer.mp3"></audio>
+
+  <script>
+    let quizData = [];
+    let wrongLog = JSON.parse(localStorage.getItem("wrongLog") || "{}");
+
+    function loadCSV(file) {
+      Papa.parse(file, {
+        download: true,
+        header: true,
+        complete: function(results) {
+          quizData = results.data;
+          startQuiz();
+        }
+      });
+    }
+
+    function startQuiz() {
+      // 例えば10問だけランダム抽出
+      let selected = shuffle(quizData).slice(0, 10);
+      renderQuiz(selected);
+    }
+
+    function renderQuiz(questions) {
+      const container = document.getElementById("quiz-container");
+      container.innerHTML = "";
+
+      questions.forEach((q, index) => {
+        const div = document.createElement("div");
+        div.className = "p-4 bg-white rounded shadow";
+
+        const title = document.createElement("h2");
+        title.textContent = `Q${index+1}. ${q.question}`;
+        div.appendChild(title);
+
+        ["a","b","c","d"].forEach(opt => {
+          const btn = document.createElement("button");
+          btn.className = "block w-full text-left border p-2 my-1 rounded option";
+          btn.textContent = `${opt}: ${q["option_"+opt]}`;
+          btn.onclick = () => {
+            if(opt === q.answer) {
+              btn.classList.add("bg-green-100");
+              document.getElementById("sound-correct").play();
+            } else {
+              btn.classList.add("bg-red-100");
+              document.getElementById("sound-wrong").play();
+              logWrong(q.question);
+            }
+            explanation.style.display = "block";
+          };
+          div.appendChild(btn);
+        });
+
+        const explanation = document.createElement("div");
+        explanation.className = "mt-2 text-sm text-gray-700 hidden";
+        explanation.textContent = q.explanation;
+        div.appendChild(explanation);
+
+        container.appendChild(div);
+      });
+    }
+
+    function logWrong(question) {
+      wrongLog[question] = (wrongLog[question] || 0) + 1;
+      localStorage.setItem("wrongLog", JSON.stringify(wrongLog));
+    }
+
+    function shuffle(array) {
+      return array.sort(() => Math.random() - 0.5);
+    }
+
+    document.getElementById("load-btn").onclick = () => {
+      const file = document.getElementById("csv-selector").value;
+      loadCSV(file);
+    };
+  </script>
+</body>
+</html>

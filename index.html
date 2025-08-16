@@ -14,10 +14,13 @@
   .correct { background-color: #e6fffa; border-color: #38a169; color: #2f855a; font-weight: 600; }
   .incorrect { background-color: #fff5f5; border-color: #e53e3e; color: #c53030; }
   .answered { cursor: default; }
-  .explanation { display:none; margin-top: 1rem; padding: 1rem; background-color: #f7fafc; border-left: 4px solid #4a5568; color: #2d3748; }
+  .explanation, .hint { display:none; margin-top: 1rem; padding: 1rem; border-left-width: 4px; }
+  .explanation { background-color: #f7fafc; border-color: #4a5568; color: #2d3748; }
+  .hint { background-color: #fffaf0; border-color: #f6e05e; color: #975a16; }
   .feedback-icon { font-size: 1.25rem; font-weight: bold; }
   .correct .feedback-icon::after { content: '〇'; color: #38a169; }
   .incorrect .feedback-icon::after { content: '✕'; color: #e53e3e; }
+  #resultModal.hidden { display: none; }
 </style>
 </head>
 <body class="bg-gray-100 text-gray-900">
@@ -72,7 +75,6 @@
                 <label for="soundToggle" class="text-sm text-gray-600">正解音</label>
             </div>
             <div class="flex-grow"></div>
-            <button id="retryBtn" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-gray-300">同じ問題で再挑戦</button>
             <button id="showStats" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-gray-300">学習ログを見る</button>
             <button id="clearStats" class="bg-red-100 text-red-700 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-red-200">ログをリセット</button>
         </div>
@@ -81,12 +83,26 @@
 
     <!-- 問題表示領域 -->
     <main id="quizArea" class="space-y-6"></main>
+
+    <!-- 結果表示モーダル -->
+    <div id="resultModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
+      <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md mx-auto text-center">
+        <h2 class="text-2xl font-bold mb-4">結果発表</h2>
+        <p id="scoreText" class="text-4xl font-bold my-4 text-blue-600"></p>
+        <p id="feedbackText" class="text-lg text-gray-700 mb-6"></p>
+        <div class="space-y-3">
+            <button id="retryBtn" class="w-full bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-600">同じ問題でもう一度</button>
+            <button id="newQuizBtn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700">新しい問題で挑戦</button>
+            <button id="closeModalBtn" class="w-full bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">閉じる</button>
+        </div>
+      </div>
+    </div>
   </div>
 
 <script>
 /* ---------------- 設定 ---------------- */
 const csvFilesFallback = ["knowledge.csv", "basic.csv"];
-const STORAGE_KEY = "rccmDrillStats_v1";
+const STORAGE_KEY = "rccmDrillStats_v2"; // ログのバージョン管理
 
 /* ---------------- DOM要素 ---------------- */
 const csvSelect = document.getElementById("csvSelect");
@@ -100,6 +116,11 @@ const soundToggle = document.getElementById("soundToggle");
 const clearStatsBtn = document.getElementById("clearStats");
 const showStatsBtn = document.getElementById("showStats");
 const notice = document.getElementById("notice");
+const resultModal = document.getElementById("resultModal");
+const scoreText = document.getElementById("scoreText");
+const feedbackText = document.getElementById("feedbackText");
+const newQuizBtn = document.getElementById("newQuizBtn");
+const closeModalBtn = document.getElementById("closeModalBtn");
 
 /* ---- 初期化処理 ---- */
 (async function init() {
@@ -149,6 +170,7 @@ function buildQuestionsFromCSV(text, filename){
     const opt3 = row["選択肢3"] || "";
     const opt4 = row["選択肢4"] || "";
     const explanation = row["解説"] || "";
+    const hint = row["ヒント"] || "";
     
     if (!qText || !correctText) return null;
 
@@ -163,7 +185,7 @@ function buildQuestionsFromCSV(text, filename){
 
     const correctLabel = Object.keys(optionsMap).find(key => optionsMap[key] === correctText.trim());
     const qid = `${filename}::q${idx+1}`;
-    return { id: qid, question: qText.trim(), options: optionsMap, answer: correctLabel, explanation: explanation.trim() };
+    return { id: qid, question: qText.trim(), options: optionsMap, answer: correctLabel, explanation: explanation.trim(), hint: hint.trim() };
   }).filter(Boolean);
 }
 
@@ -180,11 +202,13 @@ function shouldExclude(q, stats, minCorrect, minRate){
 }
 
 /* ---- 問題の読み込みと表示 ---- */
-let currentSet = [], allQuestions = [], statsCache = loadStats();
+let currentSet = [], allQuestions = [], statsCache = loadStats(), answeredCount = 0;
 
 async function loadAndRender(isRetry = false) {
   notice.textContent = "";
   quizArea.innerHTML = "";
+  answeredCount = 0;
+  resultModal.classList.add("hidden");
   statsCache = loadStats();
 
   const filename = csvSelect.value;
@@ -193,7 +217,7 @@ async function loadAndRender(isRetry = false) {
   const minRate = parseFloat(minRateInput.value) || 80;
 
   try {
-    if (!isRetry || allQuestions.length === 0) {
+    if (!isRetry || allQuestions.length === 0 || allQuestions[0].id.split('::')[0] !== filename) {
       const r = await fetch(filename);
       if (!r.ok) throw new Error(`CSVファイル「${filename}」の取得に失敗しました。`);
       const text = await r.text();
@@ -230,8 +254,23 @@ function renderAll(set){
 
     const header = document.createElement("p");
     header.className = "font-bold text-lg mb-4";
-    header.textContent = `問${idx + 1}. ${q.question}`;
+    header.innerHTML = `<span class="text-blue-600 font-semibold">問${idx + 1}.</span> ${q.question}`;
     card.appendChild(header);
+
+    if (q.hint) {
+        const hintBtn = document.createElement("button");
+        hintBtn.className = "bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-semibold hover:bg-yellow-200 mb-4";
+        hintBtn.textContent = "ヒントを見る";
+        card.appendChild(hintBtn);
+        const hintEl = document.createElement("div");
+        hintEl.className = "hint";
+        hintEl.innerHTML = `<strong class="font-semibold">【ヒント】</strong> ${q.hint}`;
+        card.appendChild(hintEl);
+        hintBtn.addEventListener("click", () => {
+          hintEl.style.display = hintEl.style.display === "block" ? "none" : "block";
+          hintBtn.textContent = hintEl.style.display === "block" ? "ヒントを隠す" : "ヒントを見る";
+        });
+    }
 
     const optsContainer = document.createElement("div");
     optsContainer.className = "options-container space-y-3";
@@ -261,14 +300,13 @@ function onOptionClick(optEl, q, cardEl){
   if (optsContainer.classList.contains("answered")) return;
   optsContainer.classList.add("answered");
 
+  answeredCount++;
   const selectedLbl = optEl.dataset.label;
   const correctLbl = q.answer;
   
   cardEl.querySelectorAll(".option").forEach(o => {
     o.classList.add("answered");
-    if (o.dataset.label === correctLbl) {
-      o.classList.add("correct");
-    }
+    if (o.dataset.label === correctLbl) o.classList.add("correct");
   });
 
   if (selectedLbl !== correctLbl) {
@@ -280,13 +318,40 @@ function onOptionClick(optEl, q, cardEl){
   const exp = cardEl.querySelector(".explanation");
   if (exp) exp.style.display = "block";
 
-  // 学習ログの更新
   const stats = loadStats();
   if (!stats[q.id]) stats[q.id] = { correct:0, total:0 };
   stats[q.id].total++;
   if (selectedLbl === correctLbl) stats[q.id].correct++;
   saveStats(stats);
   statsCache = stats;
+
+  if (answeredCount === currentSet.length) {
+    showResult();
+  }
+}
+
+/* ---- 結果表示処理 ---- */
+function showResult() {
+    let correctCount = 0;
+    currentSet.forEach(q => {
+        const card = quizArea.querySelector(`[data-label="${q.answer}"]`);
+        if (card && card.classList.contains('correct')) {
+            correctCount++;
+        }
+    });
+
+    const total = currentSet.length;
+    scoreText.textContent = `${correctCount} / ${total} 正解`;
+    
+    let feedback = '';
+    const rate = total > 0 ? (correctCount / total) * 100 : 0;
+    if (rate === 100) feedback = '素晴らしい！全問正解です。完璧です！';
+    else if (rate >= 80) feedback = '優秀です！この調子で知識を定着させましょう。';
+    else if (rate >= 60) feedback = 'まずまずの成績です。間違えた問題の解説をしっかり復習しましょう。';
+    else feedback = 'まだまだ伸びしろがありますね。繰り返し挑戦して苦手分野を克服しましょう！';
+    feedbackText.textContent = feedback;
+
+    resultModal.classList.remove('hidden');
 }
 
 /* ---- ユーティリティ関数 ---- */
@@ -295,8 +360,15 @@ function shuffleArray(a){ for (let i=a.length-1;i>0;i--){ const j = Math.floor(M
 /* ---- イベントリスナー設定 ---- */
 loadBtn.addEventListener("click", () => loadAndRender(false));
 retryBtn.addEventListener("click", () => {
-    if (currentSet.length > 0) renderAll(currentSet);
+    if (currentSet.length > 0) {
+        answeredCount = 0;
+        resultModal.classList.add("hidden");
+        renderAll(currentSet);
+    }
 });
+newQuizBtn.addEventListener("click", () => loadAndRender(false));
+closeModalBtn.addEventListener("click", () => resultModal.classList.add("hidden"));
+
 clearStatsBtn.addEventListener("click", () => {
   if (confirm("すべての学習ログをリセットします。本当によろしいですか？")) {
     localStorage.removeItem(STORAGE_KEY);

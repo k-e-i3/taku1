@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>4択ドリル</title>
+<title>建設コンサルタント 択一ドリル</title>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
@@ -26,7 +26,8 @@
 <body class="bg-gray-100 text-gray-900">
   <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl">
     <header class="text-center mb-8">
-      <h1 class="text-3xl font-bold text-gray-900">4択ドリル</h1>
+      <h1 class="text-3xl font-bold text-gray-900">建設コンサルタント 択一ドリル</h1>
+      <p class="mt-2 text-gray-600">あなたの学習ログに基づき、最適な問題を出題します。</p>
     </header>
 
     <!-- コントロールパネル -->
@@ -74,7 +75,9 @@
                 <label for="soundToggle" class="text-sm text-gray-600">正解音</label>
             </div>
             <div class="flex-grow"></div>
-            <button id="showStats" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-gray-300">学習ログを見る</button>
+            <button id="exportStats" class="bg-green-100 text-green-800 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-green-200">ログを保存</button>
+            <button id="importStats" class="bg-green-100 text-green-800 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-green-200">ログを読込</button>
+            <input type="file" id="importFile" class="hidden" accept=".json">
             <button id="clearStats" class="bg-red-100 text-red-700 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-red-200">ログをリセット</button>
         </div>
         <div id="notice" class="text-sm text-yellow-600 mt-3 text-center"></div>
@@ -101,7 +104,7 @@
 <script>
 /* ---------------- 設定 ---------------- */
 const csvFilesFallback = ["knowledge.csv", "basic.csv"];
-const STORAGE_KEY = "rccmDrillStats_v3"; // ログのバージョン管理
+const STORAGE_KEY = "rccmDrillStats_v4_ID"; // ログのバージョン管理
 
 /* ---------------- DOM要素 ---------------- */
 const csvSelect = document.getElementById("csvSelect");
@@ -113,7 +116,9 @@ const minCorrectInput = document.getElementById("minCorrect");
 const minRateInput = document.getElementById("minRate");
 const soundToggle = document.getElementById("soundToggle");
 const clearStatsBtn = document.getElementById("clearStats");
-const showStatsBtn = document.getElementById("showStats");
+const exportStatsBtn = document.getElementById("exportStats");
+const importStatsBtn = document.getElementById("importStats");
+const importFile = document.getElementById("importFile");
 const notice = document.getElementById("notice");
 const resultModal = document.getElementById("resultModal");
 const scoreText = document.getElementById("scoreText");
@@ -160,9 +165,10 @@ function playDoReMi(){
 }
 
 /* ---- CSVデータから問題オブジェクトを生成 ---- */
-function buildQuestionsFromCSV(text, filename){
+function buildQuestionsFromCSV(text){
   const parsed = Papa.parse(text, { header:true, skipEmptyLines:true });
-  return parsed.data.map((row, idx) => {
+  return parsed.data.map((row) => {
+    const id = row["ID"] || "";
     const qText = row["問題"] || "";
     const correctText = row["正解"] || "";
     const opt2 = row["選択肢2"] || "";
@@ -171,7 +177,7 @@ function buildQuestionsFromCSV(text, filename){
     const explanation = row["解説"] || "";
     const hint = row["ヒント"] || "";
     
-    if (!qText || !correctText) return null;
+    if (!id || !qText || !correctText) return null;
 
     const rawOptions = [correctText, opt2, opt3, opt4].filter(Boolean);
     shuffleArray(rawOptions);
@@ -183,8 +189,7 @@ function buildQuestionsFromCSV(text, filename){
     });
 
     const correctLabel = Object.keys(optionsMap).find(key => optionsMap[key] === correctText.trim());
-    const qid = `${filename}::q${idx+1}`;
-    return { id: qid, question: qText.trim(), options: optionsMap, answer: correctLabel, explanation: explanation.trim(), hint: hint.trim() };
+    return { id: id.trim(), question: qText.trim(), options: optionsMap, answer: correctLabel, explanation: explanation.trim(), hint: hint.trim() };
   }).filter(Boolean);
 }
 
@@ -216,11 +221,11 @@ async function loadAndRender(isRetry = false) {
   const minRate = parseFloat(minRateInput.value) || 80;
 
   try {
-    if (!isRetry || allQuestions.length === 0 || allQuestions[0].id.split('::')[0] !== filename) {
+    if (!isRetry || allQuestions.length === 0 || !allQuestions.some(q => q.id.startsWith(filename.split('.')[0]))) {
       const r = await fetch(filename);
       if (!r.ok) throw new Error(`CSVファイル「${filename}」の取得に失敗しました。`);
       const text = await r.text();
-      allQuestions = buildQuestionsFromCSV(text, filename);
+      allQuestions = buildQuestionsFromCSV(text);
     }
 
     let candidates = allQuestions.filter(q => !shouldExclude(q, statsCache, minCorrect, minRate));
@@ -365,12 +370,9 @@ function onOptionClick(optEl, q, cardEl){
 /* ---- 結果表示処理 ---- */
 function showResult() {
     let correctCount = 0;
-    quizArea.querySelectorAll('.options-container.answered').forEach(container => {
-        if (container.querySelector('.option.correct.answered[data-label]')) {
-             const correctOption = container.querySelector('.option.correct');
-             if (correctOption.classList.contains('incorrect') === false) {
-                 correctCount++;
-             }
+    quizArea.querySelectorAll('.bg-white.p-6').forEach(card => {
+        if (!card.querySelector('.option.incorrect')) {
+            correctCount++;
         }
     });
 
@@ -412,16 +414,42 @@ clearStatsBtn.addEventListener("click", () => {
     notice.textContent = "";
   }
 });
-showStatsBtn.addEventListener("click", () => {
-  const s = loadStats();
-  const keys = Object.keys(s);
-  if (keys.length === 0) return alert("学習ログはまだありません。");
-  let msg = "--- 学習ログ ---\n問題ID :: 正答 / 試行 (正答率)\n\n";
-  keys.sort().forEach(k => {
-    const rate = s[k].total > 0 ? ((s[k].correct/s[k].total)*100).toFixed(1) : "0.0";
-    msg += `${k} :: ${s[k].correct} / ${s[k].total} (${rate}%)\n`;
-  });
-  alert(msg);
+exportStatsBtn.addEventListener("click", () => {
+    const stats = loadStats();
+    if (Object.keys(stats).length === 0) {
+        alert("保存する学習ログがありません。");
+        return;
+    }
+    const blob = new Blob([JSON.stringify(stats, null, 2)], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "rccm_drill_log.json";
+    a.click();
+    URL.revokeObjectURL(url);
+    alert("学習ログを保存しました。");
+});
+importStatsBtn.addEventListener("click", () => importFile.click());
+importFile.addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const importedStats = JSON.parse(e.target.result);
+            if (confirm("現在の学習ログを上書きして、読み込んだログを適用します。よろしいですか？")) {
+                saveStats(importedStats);
+                statsCache = loadStats();
+                alert("学習ログを読み込みました。");
+                quizArea.innerHTML = "";
+                notice.textContent = "ログを読み込みました。問題を開始してください。";
+            }
+        } catch (err) {
+            alert("ファイルの読み込みに失敗しました。有効なJSONファイルではありません。");
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = ''; // 同じファイルを再度選択できるようにリセット
 });
 </script>
 </body>

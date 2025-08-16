@@ -5,83 +5,90 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>建設コンサルタント 択一ドリル</title>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-<link href="https://cdn.tailwindcss.com" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   body { font-family: "Noto Sans JP", "Inter", sans-serif; }
-  .option { transition: background-color .14s, border-color .14s; cursor: pointer; }
-  .correct { background:#e6fffa; border-color:#38a169; color:#2f855a; }
-  .incorrect { background:#fff5f5; border-color:#e53e3e; color:#c53030; }
-  .answered { cursor: default; pointer-events: none; opacity: .95; }
-  .explanation { display:none; margin-top:.5rem; padding:.6rem; background:#f7fafc; border-left:4px solid #4a5568; color:#2d3748; }
-  .hint { display:none; margin-top:.5rem; padding:.5rem; background:#fffaf0; border-left:4px solid #b7791f; color:#7a5a00; }
-  .card { min-width: 0; } /* for tailwind */
+  .option { transition: background-color .2s, border-color .2s; cursor: pointer; }
+  .option:not(.answered):hover { background-color: #f0f4ff; border-color: #a3bffa; }
+  .correct { background-color: #e6fffa; border-color: #38a169; color: #2f855a; font-weight: 600; }
+  .incorrect { background-color: #fff5f5; border-color: #e53e3e; color: #c53030; }
+  .answered { cursor: default; }
+  .explanation { display:none; margin-top: 1rem; padding: 1rem; background-color: #f7fafc; border-left: 4px solid #4a5568; color: #2d3748; }
+  .feedback-icon { font-size: 1.25rem; font-weight: bold; }
+  .correct .feedback-icon::after { content: '〇'; color: #38a169; }
+  .incorrect .feedback-icon::after { content: '✕'; color: #e53e3e; }
 </style>
 </head>
-<body class="bg-gray-100 text-gray-900 p-4 sm:p-6">
-  <div class="max-w-5xl mx-auto">
-    <header class="text-center mb-4">
-      <h1 class="text-2xl font-bold">建設コンサルタント 択一ドリル</h1>
-      <p class="text-sm text-gray-600 mt-1">CSVを読み込み、学習状況に応じてランダムに出題します。正解時はドレミ音、誤答は無音。</p>
+<body class="bg-gray-100 text-gray-900">
+  <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl">
+    <header class="text-center mb-8">
+      <h1 class="text-3xl font-bold text-gray-900">建設コンサルタント 択一ドリル</h1>
+      <p class="mt-2 text-gray-600">あなたの学習ログに基づき、最適な問題を出題します。</p>
     </header>
 
-    <!-- コントロール -->
-    <section class="bg-white p-4 rounded-lg shadow mb-4">
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+    <!-- コントロールパネル -->
+    <section class="bg-white p-5 rounded-lg shadow-md mb-8">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
-          <label class="block text-sm font-medium mb-1">問題セット (CSV)</label>
-          <select id="csvSelect" class="w-full border p-2 rounded-md bg-gray-50"></select>
+          <label for="csvSelect" class="block text-sm font-medium text-gray-700 mb-1">問題セット</label>
+          <select id="csvSelect" class="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"></select>
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">出題数</label>
-          <select id="numSelect" class="w-full border p-2 rounded-md bg-gray-50">
+          <label for="numSelect" class="block text-sm font-medium text-gray-700 mb-1">出題数</label>
+          <select id="numSelect" class="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
             <option value="5">5問</option>
             <option value="10" selected>10問</option>
             <option value="20">20問</option>
             <option value="30">30問</option>
           </select>
         </div>
-        <div class="flex items-end">
-             <div class="flex items-center gap-2 p-2 border rounded-md">
-                <input id="soundToggle" type="checkbox" class="h-4 w-4 rounded" checked />
-                <label for="soundToggle" class="text-sm">正解時に音を鳴らす</label>
-             </div>
-        </div>
-        <div class="flex items-end gap-2">
-          <button id="loadBtn" class="w-full bg-blue-600 text-white px-4 py-2 rounded-md font-semibold hover:bg-blue-700 transition">読み込んで出題</button>
+        <div class="md:col-span-2 flex items-end">
+          <button id="loadBtn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300">
+            問題を開始する
+          </button>
         </div>
       </div>
-
-      <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t pt-3">
-        <div>
-          <label class="text-sm font-medium">除外条件: 最低正解回数</label>
-          <input id="minCorrect" type="number" min="1" value="3" class="w-full border p-2 rounded-md mt-1" />
-          <p class="text-xs text-gray-500 mt-1">例: 3回以上正解した問題は出題候補から除外</p>
-        </div>
-        <div>
-          <label class="text-sm font-medium">除外条件: 最低正答率 (%)</label>
-          <input id="minRate" type="number" min="0" max="100" value="80" class="w-full border p-2 rounded-md mt-1" />
-          <p class="text-xs text-gray-500 mt-1">例: 正答率が80%以上の問題は出題候補から除外</p>
-        </div>
+      <div class="mt-4 pt-4 border-t">
+        <details>
+          <summary class="cursor-pointer text-sm font-medium text-gray-600 hover:text-gray-900">詳細設定（出題フィルタリング）</summary>
+          <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label for="minCorrect" class="block text-xs font-medium text-gray-500">除外条件: 最低正解回数</label>
+              <input id="minCorrect" type="number" min="1" value="3" class="mt-1 w-full border-gray-300 rounded-md shadow-sm text-sm" />
+              <p class="text-xs text-gray-500 mt-1">この回数以上正解した問題を除外</p>
+            </div>
+            <div>
+              <label for="minRate" class="block text-xs font-medium text-gray-500">除外条件: 最低正答率 (%)</label>
+              <input id="minRate" type="number" min="0" max="100" value="80" class="mt-1 w-full border-gray-300 rounded-md shadow-sm text-sm" />
+              <p class="text-xs text-gray-500 mt-1">この正答率以上の問題を除外</p>
+            </div>
+          </div>
+        </details>
       </div>
-
-      <div class="mt-4 flex flex-wrap gap-2 border-t pt-3">
-        <button id="retryBtn" class="bg-indigo-500 text-white px-3 py-2 rounded-md text-sm">同じ問題でもう一度</button>
-        <button id="clearStats" class="bg-gray-200 px-3 py-2 rounded-md text-sm hover:bg-gray-300">学習ログをクリア</button>
-        <button id="showStats" class="bg-gray-200 px-3 py-2 rounded-md text-sm hover:bg-gray-300">統計を見る</button>
-        <span id="notice" class="text-sm text-red-600 ml-3 self-center"></span>
-      </div>
+       <div class="mt-4 pt-4 border-t flex flex-wrap items-center gap-2">
+            <div class="flex items-center gap-2">
+                <input id="soundToggle" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600" checked />
+                <label for="soundToggle" class="text-sm text-gray-600">正解音</label>
+            </div>
+            <div class="flex-grow"></div>
+            <button id="retryBtn" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-gray-300">同じ問題で再挑戦</button>
+            <button id="showStats" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-gray-300">学習ログを見る</button>
+            <button id="clearStats" class="bg-red-100 text-red-700 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-red-200">ログをリセット</button>
+        </div>
+        <div id="notice" class="text-sm text-yellow-600 mt-3 text-center"></div>
     </section>
 
-    <!-- 問題一括表示領域 -->
-    <main id="quizArea" class="space-y-4"></main>
+    <!-- 問題表示領域 -->
+    <main id="quizArea" class="space-y-6"></main>
   </div>
 
 <script>
 /* ---------------- 設定 ---------------- */
-const csvFilesFallback = ["knowledge.csv", "basic.csv"]; // index.jsonがない場合のフォールバック
-const STORAGE_KEY = "quizStats_v2"; // バージョンアップ
+const csvFilesFallback = ["knowledge.csv", "basic.csv"];
+const STORAGE_KEY = "rccmDrillStats_v1";
 
-/* ---------------- DOM ---------------- */
+/* ---------------- DOM要素 ---------------- */
 const csvSelect = document.getElementById("csvSelect");
 const loadBtn = document.getElementById("loadBtn");
 const retryBtn = document.getElementById("retryBtn");
@@ -94,7 +101,7 @@ const clearStatsBtn = document.getElementById("clearStats");
 const showStatsBtn = document.getElementById("showStats");
 const notice = document.getElementById("notice");
 
-/* ---- 初期化: index.json 試行 -> フォールバック ---- */
+/* ---- 初期化処理 ---- */
 (async function init() {
   let list = [];
   try {
@@ -109,7 +116,7 @@ const notice = document.getElementById("notice");
   });
 })();
 
-/* ---- WebAudio: playDoReMi ---- */
+/* ---- WebAudio APIによる効果音 ---- */
 let audioCtx = null;
 function ensureAudioCtx(){ if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
 function playTone(freq, startOffset, duration=0.16){
@@ -126,27 +133,27 @@ function playTone(freq, startOffset, duration=0.16){
   o.start(now); o.stop(now+duration+0.02);
 }
 function playDoReMi(){
-  playTone(261.63, 0);
-  playTone(293.66, 0.16);
-  playTone(329.63, 0.32);
+  if (!soundToggle.checked) return;
+  playTone(523.25, 0); // ド
+  playTone(587.33, 0.14); // レ
+  playTone(659.25, 0.28); // ミ
 }
 
-/* ---- CSV -> questions 構築 ---- */
+/* ---- CSVデータから問題オブジェクトを生成 ---- */
 function buildQuestionsFromCSV(text, filename){
   const parsed = Papa.parse(text, { header:true, skipEmptyLines:true });
   return parsed.data.map((row, idx) => {
-    const qText = row["問題"] || row["question"] || "";
-    const correctText = row["正解"] || row["answer"] || "";
+    const qText = row["問題"] || "";
+    const correctText = row["正解"] || "";
     const opt2 = row["選択肢2"] || "";
     const opt3 = row["選択肢3"] || "";
     const opt4 = row["選択肢4"] || "";
     const explanation = row["解説"] || "";
-    const hint = row["ヒント"] || "";
-
+    
     if (!qText || !correctText) return null;
 
     const rawOptions = [correctText, opt2, opt3, opt4].filter(Boolean);
-    shuffleArray(rawOptions); // 選択肢をシャッフル
+    shuffleArray(rawOptions);
 
     const optionsMap = {};
     const labels = ["a", "b", "c", "d"];
@@ -155,17 +162,16 @@ function buildQuestionsFromCSV(text, filename){
     });
 
     const correctLabel = Object.keys(optionsMap).find(key => optionsMap[key] === correctText.trim());
-    const qid = `${filename}::${idx+1}`;
-    return { id: qid, question: qText.trim(), options: optionsMap, answer: correctLabel, explanation: explanation.trim(), hint: hint.trim() };
+    const qid = `${filename}::q${idx+1}`;
+    return { id: qid, question: qText.trim(), options: optionsMap, answer: correctLabel, explanation: explanation.trim() };
   }).filter(Boolean);
 }
 
-
-/* ---- stats 操作 ---- */
+/* ---- 学習ログ（Stats）の操作 ---- */
 function loadStats(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }catch(e){return{}} }
 function saveStats(obj){ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }
 
-/* ---- 除外判定 ---- */
+/* ---- 出題除外条件の判定 ---- */
 function shouldExclude(q, stats, minCorrect, minRate){
   const rec = stats[q.id] || { correct:0, total:0 };
   if (rec.total === 0) return false;
@@ -173,7 +179,7 @@ function shouldExclude(q, stats, minCorrect, minRate){
   return (rec.correct >= minCorrect) && (rate >= minRate);
 }
 
-/* ---- 出題（全問一括レンダリング） ---- */
+/* ---- 問題の読み込みと表示 ---- */
 let currentSet = [], allQuestions = [], statsCache = loadStats();
 
 async function loadAndRender(isRetry = false) {
@@ -187,95 +193,71 @@ async function loadAndRender(isRetry = false) {
   const minRate = parseFloat(minRateInput.value) || 80;
 
   try {
-    if (!isRetry) { // 初回読み込み時のみCSVをフェッチ
-        const r = await fetch(filename);
-        if (!r.ok) throw new Error("CSV取得失敗: "+r.status);
-        const text = await r.text();
-        allQuestions = buildQuestionsFromCSV(text, filename);
+    if (!isRetry || allQuestions.length === 0) {
+      const r = await fetch(filename);
+      if (!r.ok) throw new Error(`CSVファイル「${filename}」の取得に失敗しました。`);
+      const text = await r.text();
+      allQuestions = buildQuestionsFromCSV(text, filename);
     }
 
     let candidates = allQuestions.filter(q => !shouldExclude(q, statsCache, minCorrect, minRate));
     if (candidates.length < num && allQuestions.length >= num) {
-      notice.textContent = `候補が不足(${candidates.length}/${num})。除外中の問題から補充します。`;
+      notice.textContent = `苦手問題が${candidates.length}問しかありませんでした。学習済みの問題から補充して出題します。`;
       const excluded = allQuestions.filter(q => shouldExclude(q, statsCache, minCorrect, minRate));
       shuffleArray(excluded);
-      candidates.push(...excluded);
+      candidates.push(...excluded.slice(0, num - candidates.length));
     }
     shuffleArray(candidates);
     currentSet = candidates.slice(0, Math.min(num, allQuestions.length));
+    
+    if (currentSet.length === 0) {
+        notice.textContent = "出題できる問題がありません。詳細設定の条件を緩めてみてください。";
+        return;
+    }
     renderAll(currentSet);
   } catch(err) {
-    quizArea.innerHTML = `<div class="bg-red-100 p-4 rounded text-red-700">読み込みエラー: ${err.message}</div>`;
+    quizArea.innerHTML = `<div class="bg-red-100 p-4 rounded text-red-700">${err.message}</div>`;
     console.error(err);
   }
 }
 
-/* 一括描画 */
+/* ---- 全問題カードの描画 ---- */
 function renderAll(set){
   quizArea.innerHTML = "";
   set.forEach((q, idx) => {
     const card = document.createElement("div");
-    card.className = "card bg-white p-5 rounded-lg shadow";
+    card.className = "bg-white p-6 rounded-lg shadow-md";
 
-    const header = document.createElement("div");
-    header.className = "flex justify-between items-start";
-    header.innerHTML = `<div class="text-sm font-semibold text-blue-700">問 ${idx+1}</div><div class="text-xs text-gray-400">${q.id}</div>`;
+    const header = document.createElement("p");
+    header.className = "font-bold text-lg mb-4";
+    header.textContent = `問${idx + 1}. ${q.question}`;
     card.appendChild(header);
 
-    const p = document.createElement("p");
-    p.className = "font-bold text-lg mt-2";
-    p.textContent = q.question;
-    card.appendChild(p);
-
-    const btnRow = document.createElement("div");
-    btnRow.className = "mt-3 flex items-center gap-3";
-    
-    const st = statsCache[q.id] || { correct:0, total:0 };
-    const statSpan = document.createElement("div");
-    statSpan.className = "text-sm text-gray-500";
-    statSpan.textContent = `学習ログ: 正答 ${st.correct} / 試行 ${st.total}`;
-    btnRow.appendChild(statSpan);
-    
-    if (q.hint) {
-        const hintBtn = document.createElement("button");
-        hintBtn.className = "bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-semibold hover:bg-yellow-200";
-        hintBtn.textContent = "ヒント";
-        btnRow.appendChild(hintBtn);
-        const hintEl = document.createElement("div");
-        hintEl.className = "hint";
-        hintEl.innerHTML = `<strong>ヒント:</strong> ${q.hint}`;
-        card.appendChild(hintEl);
-        hintBtn.addEventListener("click", () => {
-          hintEl.style.display = hintEl.style.display === "block" ? "none" : "block";
-        });
-    }
-    card.appendChild(btnRow);
-
     const optsContainer = document.createElement("div");
-    optsContainer.className = "mt-4 grid grid-cols-1 gap-3";
+    optsContainer.className = "options-container space-y-3";
     Object.keys(q.options).forEach(lbl => {
       const txt = q.options[lbl];
       const opt = document.createElement("div");
       opt.className = "option border border-gray-300 p-3 rounded-lg flex justify-between items-center";
       opt.dataset.label = lbl;
-      opt.innerHTML = `<span><span class="font-bold mr-2">${lbl.toUpperCase()}.</span>${txt}</span>`;
-      opt.addEventListener("click", () => onOptionClickCard(opt, q, card, statSpan));
+      opt.innerHTML = `<span><span class="font-bold mr-3">${lbl.toUpperCase()}.</span>${txt}</span><span class="feedback-icon"></span>`;
+      opt.addEventListener("click", () => onOptionClick(opt, q, card));
       optsContainer.appendChild(opt);
     });
     card.appendChild(optsContainer);
 
     const exp = document.createElement("div");
     exp.className = "explanation";
-    exp.innerHTML = `<p><strong>【解説】</strong> ${q.explanation || "（解説なし）"}</p>`;
+    exp.innerHTML = `<p><strong class="font-semibold">【解説】</strong> ${q.explanation || "（解説なし）"}</p>`;
     card.appendChild(exp);
 
     quizArea.appendChild(card);
   });
 }
 
-/* 回答処理 */
-function onOptionClickCard(optEl, q, cardEl, statSpan){
-  const optsContainer = cardEl.querySelector(".mt-4");
+/* ---- 選択肢クリック時の処理 ---- */
+function onOptionClick(optEl, q, cardEl){
+  const optsContainer = cardEl.querySelector(".options-container");
   if (optsContainer.classList.contains("answered")) return;
   optsContainer.classList.add("answered");
 
@@ -283,64 +265,56 @@ function onOptionClickCard(optEl, q, cardEl, statSpan){
   const correctLbl = q.answer;
   
   cardEl.querySelectorAll(".option").forEach(o => {
-    const currentLbl = o.dataset.label;
-    if (currentLbl === correctLbl) {
+    o.classList.add("answered");
+    if (o.dataset.label === correctLbl) {
       o.classList.add("correct");
-      o.innerHTML += `<span class="font-bold text-lg">〇</span>`;
-    } else if (currentLbl === selectedLbl) {
-      o.classList.add("incorrect");
-      o.innerHTML += `<span class="font-bold text-lg">✕</span>`;
     }
   });
 
-  if (selectedLbl === correctLbl) {
-    if (soundToggle.checked) playDoReMi();
+  if (selectedLbl !== correctLbl) {
+    optEl.classList.add("incorrect");
+  } else {
+    playDoReMi();
   }
 
   const exp = cardEl.querySelector(".explanation");
   if (exp) exp.style.display = "block";
 
+  // 学習ログの更新
   const stats = loadStats();
   if (!stats[q.id]) stats[q.id] = { correct:0, total:0 };
   stats[q.id].total++;
   if (selectedLbl === correctLbl) stats[q.id].correct++;
   saveStats(stats);
   statsCache = stats;
-  const s = stats[q.id];
-  statSpan.textContent = `学習ログ: 正答 ${s.correct} / 試行 ${s.total}`;
 }
 
-/* ユーティリティ */
+/* ---- ユーティリティ関数 ---- */
 function shuffleArray(a){ for (let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
 
-/* イベント */
+/* ---- イベントリスナー設定 ---- */
 loadBtn.addEventListener("click", () => loadAndRender(false));
 retryBtn.addEventListener("click", () => {
-    if (currentSet.length > 0) {
-        renderAll(currentSet); // 同じ問題セットで再描画
-    }
+    if (currentSet.length > 0) renderAll(currentSet);
 });
 clearStatsBtn.addEventListener("click", () => {
-  if (confirm("学習ログを完全に削除します。よろしいですか？")) {
+  if (confirm("すべての学習ログをリセットします。本当によろしいですか？")) {
     localStorage.removeItem(STORAGE_KEY);
     statsCache = loadStats();
-    alert("クリアしました。");
-    loadAndRender(true); // 表示を更新
+    alert("学習ログをリセットしました。");
+    quizArea.innerHTML = "";
+    notice.textContent = "";
   }
 });
 showStatsBtn.addEventListener("click", () => {
   const s = loadStats();
   const keys = Object.keys(s);
-  if (keys.length === 0) return alert("統計データはありません。");
-  let msg = "問題ID :: 正答 / 試行 (正答率)\n\n";
-  keys.forEach(k => {
+  if (keys.length === 0) return alert("学習ログはまだありません。");
+  let msg = "--- 学習ログ ---\n問題ID :: 正答 / 試行 (正答率)\n\n";
+  keys.sort().forEach(k => {
     const rate = s[k].total > 0 ? ((s[k].correct/s[k].total)*100).toFixed(1) : "0.0";
     msg += `${k} :: ${s[k].correct} / ${s[k].total} (${rate}%)\n`;
   });
-  if (msg.length > 2000) {
-    console.log(s);
-    return alert("統計データはコンソールに出力しました（長すぎるため）。");
-  }
   alert(msg);
 });
 </script>

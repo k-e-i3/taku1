@@ -3,29 +3,32 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>択一ドリル（ランダム）</title>
+<title>択一ドリル（ランダム — 一括表示）</title>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <link href="https://cdn.tailwindcss.com" rel="stylesheet">
 <style>
   body { font-family: "Noto Sans JP", "Inter", sans-serif; }
-  .option { transition: background-color .18s, border-color .18s; cursor: pointer; }
+  .option { transition: background-color .14s, border-color .14s; cursor: pointer; }
   .correct { background:#e6fffa; border-color:#38a169; color:#2f855a; }
   .incorrect { background:#fff5f5; border-color:#e53e3e; color:#c53030; }
-  .answered { cursor: default; pointer-events: none; opacity: .96; }
-  .explanation { display:none; margin-top:.75rem; padding:.75rem; background:#f7fafc; border-left:4px solid #4a5568; color:#2d3748; }
+  .answered { cursor: default; pointer-events: none; opacity: .95; }
+  .explanation { display:none; margin-top:.5rem; padding:.6rem; background:#f7fafc; border-left:4px solid #4a5568; color:#2d3748; }
+  .hint { display:none; margin-top:.5rem; padding:.5rem; background:#fffaf0; border-left:4px solid #b7791f; color:#7a5a00; }
+  .card { min-width: 0; } /* for tailwind */
 </style>
 </head>
 <body class="bg-gray-100 text-gray-900 p-6">
-  <div class="max-w-4xl mx-auto">
-    <header class="text-center mb-6">
-      <h1 class="text-2xl font-bold">建設コンサルタント 択一ドリル（ランダム）</h1>
-      <p class="text-sm text-gray-600 mt-1">CSV（1行1問形式）を読み込み、条件で除外した上でランダム出題します。正解時はドレミ音。誤答は無音。</p>
+  <div class="max-w-5xl mx-auto">
+    <header class="text-center mb-4">
+      <h1 class="text-2xl font-bold">建設コンサルタント 択一ドリル（ランダム・一括表示）</h1>
+      <p class="text-sm text-gray-600 mt-1">CSVを読み込み、条件で除外した上でランダム抽出した問題を一度に表示します。正解時はドレミ音、誤答は無音。</p>
     </header>
 
+    <!-- コントロール -->
     <section class="bg-white p-4 rounded shadow mb-4">
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <div>
-          <label class="block text-sm font-medium mb-1">CSV（ジャンル）選択</label>
+          <label class="block text-sm font-medium mb-1">CSV（ジャンル）</label>
           <select id="csvSelect" class="w-full border p-2 rounded"></select>
         </div>
         <div>
@@ -37,52 +40,55 @@
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">正解音（ドレミ）</label>
+          <label class="block text-sm font-medium mb-1">音（正解）</label>
           <div class="flex items-center gap-2">
             <input id="soundToggle" type="checkbox" checked />
-            <label for="soundToggle" class="text-sm">鳴らす</label>
+            <label for="soundToggle" class="text-sm">ドレミを鳴らす</label>
           </div>
+        </div>
+        <div class="flex items-end gap-2">
+          <button id="loadBtn" class="bg-blue-600 text-white px-4 py-2 rounded">読み込んで出題</button>
+          <button id="retryBtn" class="bg-indigo-500 text-white px-4 py-2 rounded">もう一度挑戦</button>
         </div>
       </div>
 
       <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label class="text-sm font-medium">除外条件 — 最低正解回数</label>
+          <label class="text-sm font-medium">除外 — 最低正解回数</label>
           <input id="minCorrect" type="number" min="1" value="3" class="w-full border p-2 rounded" />
-          <p class="text-xs text-gray-500 mt-1">例: 3 回以上正解している問題は出題対象から除外</p>
+          <p class="text-xs text-gray-500 mt-1">例: 3回以上正解している問題は除外</p>
         </div>
         <div>
-          <label class="text-sm font-medium">除外条件 — 正答率（％）</label>
+          <label class="text-sm font-medium">除外 — 正答率（％）</label>
           <input id="minRate" type="number" min="0" max="100" value="80" class="w-full border p-2 rounded" />
           <p class="text-xs text-gray-500 mt-1">例: 正答率 80% 以上の問題は除外</p>
         </div>
       </div>
 
       <div class="mt-4 flex gap-2">
-        <button id="loadBtn" class="bg-blue-600 text-white px-4 py-2 rounded">CSVを読み込んで出題</button>
         <button id="clearStats" class="bg-gray-200 px-3 py-2 rounded">学習ログをクリア</button>
         <button id="showStats" class="bg-gray-200 px-3 py-2 rounded">統計を見る</button>
+        <span id="notice" class="text-sm text-red-600 ml-3"></span>
       </div>
-      <p id="notice" class="text-sm text-red-600 mt-2"></p>
     </section>
 
-    <main id="quizArea" class="space-y-6"></main>
+    <!-- 問題一括表示領域 -->
+    <main id="quizArea" class="space-y-4"></main>
 
-    <footer class="text-center text-xs text-gray-500 mt-8">
-      CSVは同フォルダに置いてください。CSV一覧は <code>index.json</code>（配列形式）を置くと自動で取得します。なければ index.html 内の配列を使ってください。
+    <footer class="text-center text-xs text-gray-500 mt-6">
+      CSVは同フォルダに配置。index.json があれば自動でファイル一覧を取得（なければ内部配列）。CSVヘッダ推奨：問題,正解,選択肢2,選択肢3,選択肢4,解説,ヒント
     </footer>
   </div>
 
 <script>
-/* ---- 設定: CSV一覧（index.json が無ければこの配列を利用） ---- */
+/* ---------------- 設定 ---------------- */
 const csvFilesFallback = ["4-1.csv","4-2.csv","4-3.csv"]; // 必要なら編集
-
-/* ---- localStorageキー ---- */
 const STORAGE_KEY = "quizStats_v1";
 
-/* ---- DOM ---- */
+/* ---------------- DOM ---------------- */
 const csvSelect = document.getElementById("csvSelect");
 const loadBtn = document.getElementById("loadBtn");
+const retryBtn = document.getElementById("retryBtn");
 const quizArea = document.getElementById("quizArea");
 const numSelect = document.getElementById("numSelect");
 const minCorrectInput = document.getElementById("minCorrect");
@@ -92,17 +98,14 @@ const clearStatsBtn = document.getElementById("clearStats");
 const showStatsBtn = document.getElementById("showStats");
 const notice = document.getElementById("notice");
 
-/* ---- 初期化: index.json を試しに読み、なければフォールバック ---- */
+/* ---- 初期化: index.json 試行 -> フォールバック ---- */
 (async function init() {
   let list = [];
   try {
     const r = await fetch("index.json");
-    if (r.ok) {
-      list = await r.json();
-      if (!Array.isArray(list)) list = [];
-    }
-  } catch(e) { /* ignore */ }
-  if (list.length === 0) list = csvFilesFallback;
+    if (r.ok) list = await r.json();
+  } catch(e){ /* ignore */ }
+  if (!Array.isArray(list) || list.length===0) list = csvFilesFallback;
   list.forEach(f => {
     const opt = document.createElement("option");
     opt.value = f; opt.textContent = f;
@@ -112,142 +115,99 @@ const notice = document.getElementById("notice");
 
 /* ---- WebAudio: playDoReMi ---- */
 let audioCtx = null;
-function ensureAudioCtx() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-}
-function playTone(freq, startOffset, duration=0.18) {
+function ensureAudioCtx(){ if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+function playTone(freq, startOffset, duration=0.16){
   ensureAudioCtx();
   const o = audioCtx.createOscillator();
   const g = audioCtx.createGain();
   o.type = "sine";
   o.frequency.value = freq;
-  g.gain.value = 0.0001;
   o.connect(g); g.connect(audioCtx.destination);
   const now = audioCtx.currentTime + startOffset;
   g.gain.setValueAtTime(0.0001, now);
-  g.gain.exponentialRampToValueAtTime(0.2, now+0.01);
+  g.gain.exponentialRampToValueAtTime(0.18, now+0.01);
   g.gain.exponentialRampToValueAtTime(0.0001, now+duration);
-  o.start(now);
-  o.stop(now + duration + 0.02);
+  o.start(now); o.stop(now+duration+0.02);
 }
-function playDoReMi() {
-  playTone(261.63, 0);     // C4
-  playTone(293.66, 0.18);  // D4
-  playTone(329.63, 0.36);  // E4
+function playDoReMi(){
+  playTone(261.63, 0);
+  playTone(293.66, 0.16);
+  playTone(329.63, 0.32);
 }
 
-/* ---- CSVパース（あなたの指定フォーマットに対応） ----
-   期待ヘッダ: 問題,正解,選択肢2,選択肢3,選択肢4,解説,ヒント
-   実データの揺らぎにも対応:
-     - 「正解」セルに "a. xxx,b. yyy,c. zzz" のように複数がまとまっている場合は分割して options を復元。
-     - それ以外は 正解=最初の選択肢 として扱う（あなたの指定どおり）。
-*/
-function buildQuestionsFromCSV(text, filename) {
-  const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+/* ---- CSV -> questions 構築（あなたの1行1問形式対応） ---- */
+function buildQuestionsFromCSV(text, filename){
+  const parsed = Papa.parse(text, { header:true, skipEmptyLines:true });
   const rows = parsed.data;
   const questions = [];
-
   rows.forEach((row, idx) => {
-    // normalize keys (日本語ヘッダに依存しない柔軟さ)
-    // try common header names:
+    // 柔軟にヘッダ名を拾う
     const qText = row["問題"] ?? row["question"] ?? Object.values(row)[0] ?? "";
     const colCorrect = row["正解"] ?? row["answer"] ?? Object.values(row)[1] ?? "";
-    const col2 = row["選択肢2"] ?? row["choice2"] ?? Object.values(row)[2] ?? "";
-    const col3 = row["選択肢3"] ?? row["choice3"] ?? Object.values(row)[3] ?? "";
-    const col4 = row["選択肢4"] ?? row["choice4"] ?? Object.values(row)[4] ?? "";
-    const explanation = row["解説"] ?? row["explanation"] ?? Object.values(row)[5] ?? "";
-    const hint = row["ヒント"] ?? row["hint"] ?? Object.values(row)[6] ?? "";
+    const col2 = row["選択肢2"] ?? Object.values(row)[2] ?? "";
+    const col3 = row["選択肢3"] ?? Object.values(row)[3] ?? "";
+    const col4 = row["選択肢4"] ?? Object.values(row)[4] ?? "";
+    const explanation = row["解説"] ?? Object.values(row)[5] ?? "";
+    const hint = row["ヒント"] ?? Object.values(row)[6] ?? "";
 
-    // Build options array robustly
+    // raw options: if colCorrect contains multiple "a. .., b. .." style, split. Otherwise use sequential.
     let rawOptions = [];
-
-    // If colCorrect contains multiple labeled options (e.g. "a. .., b. ..") then split
-    const looksLikeMultiple = /[aAａ][\.\．\)]\s*[^,]+[,，]\s*[bBｂ]/.test(colCorrect);
+    const looksLikeMultiple = /[aA][\.\．\)]\s*[^,]+[,，]\s*[bB]/.test(colCorrect);
     if (looksLikeMultiple) {
-      // split on commas but be robust for fullwidth comma
-      rawOptions = colCorrect.split(/[,，]\s*/).map(s => s.trim()).filter(s => s.length);
-      // If there are also col2..4 and they are non-empty and not duplicates, append them
-      [col2, col3, col4].forEach(c => { if (c && !rawOptions.includes(c.trim())) rawOptions.push(c.trim()); });
+      rawOptions = colCorrect.split(/[,，]\s*/).map(s=>s.trim()).filter(Boolean);
+      [col2,col3,col4].forEach(c=>{ if(c && !rawOptions.includes(c.trim())) rawOptions.push(c.trim()); });
     } else {
-      // Normal case: correct column is first option; then append others if present
-      if (colCorrect && colCorrect.trim().length) rawOptions.push(colCorrect.trim());
-      if (col2 && col2.trim().length) rawOptions.push(col2.trim());
-      if (col3 && col3.trim().length) rawOptions.push(col3.trim());
-      if (col4 && col4.trim().length) rawOptions.push(col4.trim());
+      if (colCorrect && colCorrect.toString().trim()) rawOptions.push(colCorrect.toString().trim());
+      if (col2 && col2.toString().trim()) rawOptions.push(col2.toString().trim());
+      if (col3 && col3.toString().trim()) rawOptions.push(col3.toString().trim());
+      if (col4 && col4.toString().trim()) rawOptions.push(col4.toString().trim());
     }
-
-    // If still empty, skip
-    if (rawOptions.length === 0 || !qText) return;
-
-    // Normalize each option: if "a. テキスト" -> strip label; keep mapping label->text
+    if (!qText || rawOptions.length === 0) return;
+    // normalize label->text
     const optionsMap = {};
     const labels = ["a","b","c","d","e","f"];
-    rawOptions.forEach((opt, i) => {
-      // try to extract label and body
+    rawOptions.forEach((opt,i)=>{
       const m = opt.match(/^([a-zA-Z一二三四五六七八九十0-9]+)[\.\．\)]\s*(.*)$/);
       if (m && m[2]) {
-        // label provided in text (like "a. テキスト")
         const label = m[1].toString().toLowerCase();
         optionsMap[label] = m[2].trim();
       } else {
-        // no label; use sequential label
         optionsMap[labels[i]] = opt.trim();
       }
     });
-
-    // determine correct label:
-    // 1) if there's a dedicated small value (colCorrect exactly "a" etc) -> use it
+    // determine correct label
     let correctLabel = null;
-    const simpleLabelMatch = (colCorrect || "").trim().match(/^[a-dA-D]$/);
-    if (simpleLabelMatch) {
-      correctLabel = simpleLabelMatch[0].toLowerCase();
-    } else {
-      // 2) if optionsMap has label that came from prefixed labels in colCorrect, prefer first of raw list
-      // choose the label corresponding to the first option in rawOptions
+    const simpleLabelMatch = (colCorrect || "").toString().trim().match(/^[a-dA-D]$/);
+    if (simpleLabelMatch) correctLabel = simpleLabelMatch[0].toLowerCase();
+    else {
       const firstOpt = rawOptions[0];
-      const m2 = firstOpt.match(/^([a-zA-Z一二三四五六七八九十0-9]+)[\.\．\)]\s*(.*)$/);
-      if (m2) {
-        correctLabel = m2[1].toLowerCase();
-      } else {
-        // 3) fallback: first sequential label (a)
-        correctLabel = Object.keys(optionsMap)[0];
-      }
+      const m2 = firstOpt.match(/^([a-zA-Z一二三四五六七八九十0-9]+)[\.\．\)]/);
+      if (m2) correctLabel = m2[1].toLowerCase();
+      else correctLabel = Object.keys(optionsMap)[0];
     }
-
-    // Finally create question object
     const qid = `${filename}::${idx+1}`;
-    questions.push({
-      id: qid,
-      question: qText.trim(),
-      options: optionsMap,
-      answer: correctLabel,
-      explanation: (explanation || "").trim(),
-      hint: (hint || "").trim()
-    });
+    questions.push({ id: qid, question: qText.trim(), options: optionsMap, answer: correctLabel, explanation: (explanation||"").trim(), hint: (hint||"").trim() });
   });
-
   return questions;
 }
 
-/* ---- stats (localStorage) ---- */
-function loadStats() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch(e){ return {}; }
-}
-function saveStats(obj) { localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }
-function clearStats() { localStorage.removeItem(STORAGE_KEY); alert("学習ログをクリアしました。"); }
+/* ---- stats 操作 ---- */
+function loadStats(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }catch(e){return{}} }
+function saveStats(obj){ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }
+function clearStats(){ localStorage.removeItem(STORAGE_KEY); alert("学習ログをクリアしました"); }
 
 /* ---- 除外判定 ---- */
-function shouldExclude(q, stats, minCorrect, minRate) {
+function shouldExclude(q, stats, minCorrect, minRate){
   const rec = stats[q.id] || { correct:0, total:0 };
-  if (rec.total === 0) return false; // 未解答は常に残す
-  const rate = rec.total > 0 ? (rec.correct / rec.total) * 100 : 0;
+  if (rec.total === 0) return false;
+  const rate = rec.total>0 ? (rec.correct/rec.total)*100 : 0;
   return (rec.correct >= minCorrect) && (rate >= minRate);
 }
 
-/* ---- メイン出題ロジック ---- */
-let currentSet = [], currentIndex = 0, statsCache = loadStats();
+/* ---- 出題（全問一括レンダリング） ---- */
+let currentSet = [], statsCache = loadStats();
 
-async function loadAndStart() {
+async function loadAndRender() {
   notice.textContent = "";
   quizArea.innerHTML = "";
   statsCache = loadStats();
@@ -259,116 +219,116 @@ async function loadAndStart() {
 
   try {
     const r = await fetch(filename);
-    if (!r.ok) throw new Error("CSV取得失敗: " + r.status);
+    if (!r.ok) throw new Error("CSV取得失敗: "+r.status);
     const text = await r.text();
     const all = buildQuestionsFromCSV(text, filename);
 
-    // filter candidates excluding those that meet the exclusion rule
-    const candidates = all.filter(q => !shouldExclude(q, statsCache, minCorrect, minRate));
+    let candidates = all.filter(q => !shouldExclude(q, statsCache, minCorrect, minRate));
     if (candidates.length < num) {
-      notice.textContent = `出題候補が不足しています（候補 ${candidates.length} / 要求 ${num}）。除外中の問題を含めて補充します。`;
+      notice.textContent = `候補が不足しています（${candidates.length}/${num}）。除外中の問題を含めて補充します。`;
       const excluded = all.filter(q => shouldExclude(q, statsCache, minCorrect, minRate));
       candidates.push(...excluded);
     }
     shuffleArray(candidates);
     currentSet = candidates.slice(0, Math.min(num, candidates.length));
-    if (currentSet.length === 0) {
-      quizArea.innerHTML = `<div class="bg-yellow-50 p-4 rounded">読み取れる問題がありません。CSV形式（ヘッダ）を確認してください。</div>`;
-      return;
-    }
-    currentIndex = 0;
-    renderCurrent();
-  } catch (err) {
+    renderAll(currentSet);
+  } catch(err) {
     quizArea.innerHTML = `<div class="bg-red-50 p-4 rounded text-red-700">読み込みエラー: ${err.message}</div>`;
     console.error(err);
   }
 }
 
-function renderCurrent() {
-  const q = currentSet[currentIndex];
+/* 一括描画 */
+function renderAll(set){
   quizArea.innerHTML = "";
-  const cont = document.createElement("div");
-  cont.className = "bg-white p-6 rounded shadow";
+  set.forEach((q, idx) => {
+    const card = document.createElement("div");
+    card.className = "card bg-white p-5 rounded shadow";
 
-  cont.innerHTML = `<div class="flex justify-between items-start">
-    <div class="text-sm text-gray-600">問題 ${currentIndex+1} / ${currentSet.length}</div>
-    <div class="text-xs text-gray-500">ID: ${q.id}</div>
-  </div>`;
+    // header
+    const header = document.createElement("div");
+    header.className = "flex justify-between items-start";
+    header.innerHTML = `<div class="text-sm text-gray-600">問 ${idx+1}</div><div class="text-xs text-gray-500">${q.id}</div>`;
+    card.appendChild(header);
 
-  const p = document.createElement("p");
-  p.className = "font-bold text-lg mt-3";
-  p.textContent = q.question;
-  cont.appendChild(p);
+    // question
+    const p = document.createElement("p");
+    p.className = "font-bold text-lg mt-2";
+    p.textContent = q.question;
+    card.appendChild(p);
 
-  const opts = document.createElement("div");
-  opts.className = "mt-4 space-y-3";
+    // buttons row (hint & stats)
+    const btnRow = document.createElement("div");
+    btnRow.className = "mt-3 flex items-center gap-3";
+    const hintBtn = document.createElement("button");
+    hintBtn.className = "bg-yellow-300 text-black px-3 py-1 rounded text-sm";
+    hintBtn.textContent = "ヒント";
+    const st = statsCache[q.id] || { correct:0, total:0 };
+    const statSpan = document.createElement("div");
+    statSpan.className = "text-sm text-gray-500";
+    statSpan.textContent = `これまで: 正答 ${st.correct} / 試行 ${st.total}`;
+    btnRow.appendChild(hintBtn);
+    btnRow.appendChild(statSpan);
+    card.appendChild(btnRow);
 
-  // show options in label-order (a,b,c,d,...)
-  const order = Object.keys(q.options);
-  order.forEach(lbl => {
-    const txt = q.options[lbl];
-    const el = document.createElement("div");
-    el.className = "option border border-gray-300 p-3 rounded-lg flex justify-between items-center";
-    el.dataset.label = lbl;
-    el.innerHTML = `<span><span class="font-bold mr-2">${lbl}.</span>${txt}</span><span class="feedback-icon"></span>`;
-    el.addEventListener("click", () => handleOptionClick(el, q));
-    opts.appendChild(el);
+    // hint element
+    const hintEl = document.createElement("div");
+    hintEl.className = "hint";
+    hintEl.innerHTML = `<strong>ヒント:</strong> ${q.hint || "（なし）"}`;
+    card.appendChild(hintEl);
+
+    hintBtn.addEventListener("click", () => {
+      hintEl.style.display = hintEl.style.display === "block" ? "none" : "block";
+    });
+
+    // options
+    const opts = document.createElement("div");
+    opts.className = "mt-4 grid grid-cols-1 gap-3";
+    const order = Object.keys(q.options);
+    order.forEach(lbl => {
+      const txt = q.options[lbl];
+      const opt = document.createElement("div");
+      opt.className = "option border border-gray-300 p-3 rounded-lg flex justify-between items-center";
+      opt.dataset.label = lbl;
+      opt.innerHTML = `<span><span class="font-bold mr-2">${lbl}.</span>${txt}</span><span class="feedback-icon"></span>`;
+      opt.addEventListener("click", () => onOptionClickCard(opt, q, card, statSpan));
+      opts.appendChild(opt);
+    });
+    card.appendChild(opts);
+
+    // explanation
+    const exp = document.createElement("div");
+    exp.className = "explanation";
+    exp.innerHTML = `<p><strong>【解説】</strong> ${q.explanation || "（解説なし）"}</p>`;
+    card.appendChild(exp);
+
+    quizArea.appendChild(card);
   });
-  cont.appendChild(opts);
-
-  const exp = document.createElement("div");
-  exp.className = "explanation text-base";
-  exp.innerHTML = `<p><strong>【解説】</strong> ${q.explanation || "（解説なし）"}</p>
-                   <p class="text-sm text-gray-600 mt-2"><strong>ヒント:</strong> ${q.hint || "（なし）"}</p>`;
-  cont.appendChild(exp);
-
-  const nav = document.createElement("div");
-  nav.className = "mt-4 flex gap-2 items-center";
-  const nextBtn = document.createElement("button");
-  nextBtn.className = "bg-blue-600 text-white px-4 py-2 rounded";
-  nextBtn.textContent = (currentIndex < currentSet.length - 1) ? "次へ" : "終了";
-  nextBtn.addEventListener("click", () => {
-    if (currentIndex < currentSet.length - 1) {
-      currentIndex++; renderCurrent();
-    } else {
-      quizArea.innerHTML = `<div class="bg-green-50 p-4 rounded">出題終了。統計を確認してください。</div>`;
-    }
-  });
-  nav.appendChild(nextBtn);
-
-  const st = statsCache[q.id] || { correct:0, total:0 };
-  const statTxt = document.createElement("div");
-  statTxt.className = "text-sm text-gray-500 ml-2";
-  statTxt.textContent = `これまでの記録: 正答 ${st.correct} / 試行 ${st.total}`;
-  nav.appendChild(statTxt);
-
-  cont.appendChild(nav);
-  quizArea.appendChild(cont);
 }
 
-function handleOptionClick(el, q) {
-  if (el.classList.contains("answered")) return;
-  const selected = el.dataset.label;
+/* 回答処理（カード版） */
+function onOptionClickCard(optEl, q, cardEl, statSpan){
+  if (optEl.classList.contains("answered") || optEl.closest(".card").querySelectorAll(".answered").length>0) return;
+  const selected = optEl.dataset.label;
   const correct = q.answer;
-  // mark answered
-  const parent = el.closest("div");
-  const allOpt = parent.querySelectorAll(".option");
-  allOpt.forEach(o => o.classList.add("answered"));
+  // disable all options in this card
+  const opts = cardEl.querySelectorAll(".option");
+  opts.forEach(o => o.classList.add("answered"));
 
-  // highlight correct
-  allOpt.forEach(o => { if (o.dataset.label === correct) o.classList.add("correct"); });
+  // mark correct
+  opts.forEach(o => { if (o.dataset.label === correct) o.classList.add("correct"); });
 
   if (selected === correct) {
-    el.classList.add("correct");
+    optEl.classList.add("correct");
     if (soundToggle.checked) playDoReMi();
   } else {
-    el.classList.add("incorrect");
-    // intentionally no wrong sound
+    optEl.classList.add("incorrect");
+    // no wrong sound
   }
 
   // show explanation
-  const explanationElm = el.closest(".bg-white").querySelector(".explanation");
-  if (explanationElm) explanationElm.style.display = "block";
+  const exp = cardEl.querySelector(".explanation");
+  if (exp) exp.style.display = "block";
 
   // update stats
   const stats = loadStats();
@@ -377,36 +337,29 @@ function handleOptionClick(el, q) {
   if (selected === correct) stats[q.id].correct = (stats[q.id].correct || 0) + 1;
   saveStats(stats);
   statsCache = stats;
-
-  // update stat text
-  const statTextElm = el.closest(".bg-white").querySelector("div.text-sm");
-  if (statTextElm) {
-    const s = stats[q.id];
-    statTextElm.textContent = `これまでの記録: 正答 ${s.correct} / 試行 ${s.total}`;
-  }
+  const s = stats[q.id];
+  statSpan.textContent = `これまで: 正答 ${s.correct} / 試行 ${s.total}`;
 }
 
-/* ---- util ---- */
-function shuffleArray(a) {
-  for (let i=a.length-1;i>0;i--){
-    const j = Math.floor(Math.random()*(i+1));
-    [a[i],a[j]] = [a[j],a[i]];
-  }
-}
+/* ユーティリティ */
+function shuffleArray(a){ for (let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
 
-/* ---- イベント ---- */
-loadBtn.addEventListener("click", () => { loadAndStart(); });
+/* イベント */
+loadBtn.addEventListener("click", () => loadAndRender());
+retryBtn.addEventListener("click", () => {
+  // 再抽出して同条件で再出題
+  loadAndRender();
+});
 clearStatsBtn.addEventListener("click", () => {
-  if (confirm("学習ログを削除します。よろしいですか？")) { clearStats(); statsCache = loadStats(); }
+  if (confirm("学習ログを完全に削除します。よいですか？")) { clearStats(); statsCache = loadStats(); alert("クリアしました"); }
 });
 showStatsBtn.addEventListener("click", () => {
   const s = loadStats();
   const keys = Object.keys(s);
-  if (keys.length === 0) return alert("統計はまだありません。");
-  // 簡易表示（長い場合はコンソール）
+  if (keys.length === 0) return alert("統計はありません。");
   let msg = "問題ID — 正答 / 試行\n\n";
   keys.forEach(k => { msg += `${k} — ${s[k].correct} / ${s[k].total}\n`; });
-  if (msg.length > 2000) { console.log(s); return alert("統計をコンソールに出力しました（大きいため）。"); }
+  if (msg.length>2000) { console.log(s); return alert("統計はコンソールに出力しました（長いため）。"); }
   alert(msg);
 });
 </script>

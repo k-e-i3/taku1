@@ -19,8 +19,9 @@
   .hint { background-color: #fffaf0; border-color: #f6e05e; color: #975a16; }
   .feedback-icon { font-size: 1.25rem; font-weight: bold; }
   .correct .feedback-icon::after { content: '〇'; color: #38a169; }
-  .incorrect .feedback-icon::after { content: '✕'; color: #e53e3e; }
+  .incorrect .feedback-icon::after { content: '?'; color: #e53e3e; }
   #resultModal.hidden { display: none; }
+  #deletedModal.hidden { display: none; }
   details > summary { list-style: none; }
   details > summary::-webkit-details-marker { display: none; }
 </style>
@@ -46,7 +47,7 @@
       <div class="mt-3 pt-3 border-t">
         <details>
           <summary class="cursor-pointer text-sm font-medium text-gray-600 hover:text-gray-900 flex items-center">
-            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="[...]" /></svg>
             詳細設定・ログ管理
           </summary>
           <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -70,6 +71,8 @@
             <button id="importStats" class="bg-green-100 text-green-800 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-green-200">読込</button>
             <input type="file" id="importFile" class="hidden" accept=".json">
             <button id="clearStats" class="bg-red-100 text-red-700 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-red-200">リセット</button>
+            <button id="manageDeletedBtn" class="bg-red-50 text-red-700 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-red-100">削除済みの管理</button>
+            <button id="copyCsvBtn" class="bg-indigo-100 text-indigo-800 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-indigo-200">CSVをコピー（削除反映）</button>
           </div>
         </details>
       </div>
@@ -92,12 +95,29 @@
         </div>
       </div>
     </div>
+
+    <!-- 削除済み管理モーダル -->
+    <div id="deletedModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+      <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg mx-4">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-bold">削除済みの問題（今後出題しない）</h3>
+          <div class="flex items-center gap-2">
+            <button id="restoreAllBtn" class="bg-green-100 text-green-800 px-3 py-1 rounded text-sm hover:bg-green-200">全復元</button>
+            <button id="closeDeletedModal" class="bg-gray-100 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-200">閉じる</button>
+          </div>
+        </div>
+        <div id="deletedList" class="space-y-2 text-sm text-gray-700 max-h-72 overflow-auto"></div>
+        <p id="deletedNotice" class="text-xs text-gray-500 mt-3">（削除はユーザー側の設定で、CSV自体は書き換わりません）</p>
+      </div>
+    </div>
+
   </div>
 
 <script>
 /* ---------------- 設定 ---------------- */
 const csvFilesFallback = ["knowledge.csv", "basic.csv"];
 const STORAGE_KEY = "rccmDrillStats_v4_ID";
+const DELETED_KEY = "rccmDrillDeleted_v1";
 
 /* ---------------- DOM要素 ---------------- */
 const csvSelect = document.getElementById("csvSelect");
@@ -119,6 +139,12 @@ const scoreText = document.getElementById("scoreText");
 const feedbackText = document.getElementById("feedbackText");
 const newQuizBtn = document.getElementById("newQuizBtn");
 const closeModalBtn = document.getElementById("closeModalBtn");
+const manageDeletedBtn = document.getElementById("manageDeletedBtn");
+const deletedModal = document.getElementById("deletedModal");
+const deletedList = document.getElementById("deletedList");
+const closeDeletedModal = document.getElementById("closeDeletedModal");
+const restoreAllBtn = document.getElementById("restoreAllBtn");
+const copyCsvBtn = document.getElementById("copyCsvBtn");
 
 /* ---- 初期化処理 ---- */
 (async function init() {
@@ -191,6 +217,10 @@ function buildQuestionsFromCSV(text){
 function loadStats(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }catch(e){return{}} }
 function saveStats(obj){ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }
 
+/* ---- 削除済み問題リストの操作 ---- */
+function loadDeleted(){ try{ return JSON.parse(localStorage.getItem(DELETED_KEY) || "[]"); }catch(e){ return []; } }
+function saveDeleted(arr){ localStorage.setItem(DELETED_KEY, JSON.stringify(arr)); }
+
 /* ---- 出題除外条件の判定 ---- */
 function shouldExclude(q, stats, minCorrect, minRate){
   const rec = stats[q.id] || { correct:0, total:0 };
@@ -213,6 +243,7 @@ async function loadAndRender(isRetry = false) {
   const num = parseInt(numSelect.value,10) || 10;
   const minCorrect = parseInt(minCorrectInput.value,10) || 3;
   const minRate = parseFloat(minRateInput.value) || 80;
+  const deletedIds = new Set(loadDeleted());
 
   try {
     if (!isRetry || allQuestions.length === 0 || !allQuestions.some(q => q.id.startsWith(filename.split('.')[0]))) {
@@ -222,18 +253,22 @@ async function loadAndRender(isRetry = false) {
       allQuestions = buildQuestionsFromCSV(text);
     }
 
-    let candidates = allQuestions.filter(q => !shouldExclude(q, statsCache, minCorrect, minRate));
-    if (candidates.length < num && allQuestions.length >= num) {
+    // 削除済みIDを除外
+    const filteredAll = allQuestions.filter(q => !deletedIds.has(q.id));
+
+    let candidates = filteredAll.filter(q => !shouldExclude(q, statsCache, minCorrect, minRate));
+    // 足りなければ学習済み（除外された）から補う（ただし削除済みは含めない）
+    if (candidates.length < num && filteredAll.length >= num) {
       notice.textContent = `苦手問題が${candidates.length}問しかありませんでした。学習済みの問題から補充して出題します。`;
-      const excluded = allQuestions.filter(q => shouldExclude(q, statsCache, minCorrect, minRate));
+      const excluded = filteredAll.filter(q => shouldExclude(q, statsCache, minCorrect, minRate));
       shuffleArray(excluded);
       candidates.push(...excluded.slice(0, num - candidates.length));
     }
     shuffleArray(candidates);
-    currentSet = candidates.slice(0, Math.min(num, allQuestions.length));
+    currentSet = candidates.slice(0, Math.min(num, filteredAll.length));
     
     if (currentSet.length === 0) {
-        notice.textContent = "出題できる問題がありません。詳細設定の条件を緩めてみてください。";
+        notice.textContent = "出題できる問題がありません。詳細設定の条件を緩めるか、削除済みの問題を復元してください。";
         return;
     }
     renderAll(currentSet);
@@ -267,12 +302,41 @@ function renderAll(set){
     titleContainer.appendChild(questionTitle);
     titleContainer.appendChild(questionId);
     
+    const rightGroup = document.createElement("div");
+    rightGroup.className = "flex items-center gap-2";
+
     const statsBadge = document.createElement("div");
     statsBadge.className = "stats-badge text-xs font-bold px-2.5 py-1 rounded-full text-white whitespace-nowrap";
     updateStatsBadge(statsBadge, q.id);
 
+    // 削除ボタン
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "bg-red-50 text-red-700 px-2 py-1 rounded text-xs font-medium hover:bg-red-100";
+    deleteBtn.textContent = "削除";
+    deleteBtn.title = "この問題を今後出題しないようにする";
+    deleteBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (!confirm("この問題を削除（今後出題しない）しますか？\n（CSV自体は変更されず、あなたのブラウザ設定で記録されます）")) return;
+      const deleted = loadDeleted();
+      if (!deleted.includes(q.id)) {
+        deleted.push(q.id);
+        saveDeleted(deleted);
+      }
+      // remove from currentSet and DOM
+      currentSet = currentSet.filter(c => c.id !== q.id);
+      card.remove();
+      notice.textContent = "問題を削除しました。削除済みの管理から復元できます。";
+      // If all remaining questions answered -> show result
+      if (answeredCount === currentSet.length) {
+        showResult();
+      }
+    });
+
+    rightGroup.appendChild(statsBadge);
+    rightGroup.appendChild(deleteBtn);
+
     header.appendChild(titleContainer);
-    header.appendChild(statsBadge);
+    header.appendChild(rightGroup);
     card.appendChild(header);
 
     if (q.hint) {
@@ -374,9 +438,12 @@ function onOptionClick(optEl, q, cardEl){
 /* ---- 結果表示処理 ---- */
 function showResult() {
     let correctCount = 0;
+    // 選択されたカード（DOM上にあるもの）で正答数を数える
     quizArea.querySelectorAll('.bg-white.p-6').forEach(card => {
         if (!card.querySelector('.option.incorrect')) {
-            correctCount++;
+            if (card.querySelector('.options-container.answered')) {
+                correctCount++;
+            }
         }
     });
 
@@ -396,6 +463,119 @@ function showResult() {
 
 /* ---- ユーティリティ関数 ---- */
 function shuffleArray(a){ for (let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
+
+/* ---- CSVをコピー（削除済みを反映） ---- */
+async function copyCsvExcludingDeleted() {
+  const filename = csvSelect.value;
+  const deleted = new Set(loadDeleted());
+
+  try {
+    const r = await fetch(filename);
+    if (!r.ok) throw new Error(`CSVファイル「${filename}」の取得に失敗しました。`);
+    const text = await r.text();
+
+    // parse with header (keep empty lines to preserve structure; remove only rows we need)
+    const parsed = Papa.parse(text, { header: true, skipEmptyLines: false });
+    if (!parsed || !Array.isArray(parsed.data)) throw new Error("CSVの解析に失敗しました。");
+
+    // If parsed.data is an array of objects, filter by ID
+    const filtered = parsed.data.filter(row => {
+      // If the row is entirely empty (all values empty), keep it
+      const hasAny = Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== "");
+      if (!hasAny) return true;
+      const id = (row["ID"] || "").toString().trim();
+      return id === "" ? true : !deleted.has(id);
+    });
+
+    // Determine fields/order: prefer parsed.meta.fields if available
+    const fields = (parsed.meta && parsed.meta.fields) ? parsed.meta.fields : Object.keys(filtered[0] || {});
+    const csvOut = Papa.unparse({ fields: fields, data: filtered });
+
+    // Copy to clipboard. BOM not necessary for GitHub paste; keep it off by default.
+    const finalText = csvOut;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(finalText);
+      alert("CSV（削除済みを反映）をクリップボードにコピーしました。\nGitHubのファイル編集画面に貼り付けて保存してください。");
+    } else {
+      // Fallback: temporary textarea
+      const ta = document.createElement("textarea");
+      ta.value = finalText;
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+        alert("CSVをクリップボードにコピーしました（フォールバック）。GitHubに貼り付けてください。");
+      } catch (e) {
+        alert("コピーに失敗しました。以下のテキストを手動でコピーしてください。");
+        const w = window.open("", "_blank");
+        w.document.write("<pre>" + escapeHtml(finalText) + "</pre>");
+      } finally {
+        document.body.removeChild(ta);
+      }
+    }
+  } catch (err) {
+    alert("CSVのコピーに失敗しました: " + err.message);
+    console.error(err);
+  }
+}
+function escapeHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+/* ---- 削除済み管理モーダル処理 ---- */
+function openDeletedModal(){
+  renderDeletedList();
+  deletedModal.classList.remove('hidden');
+}
+function closeDeletedModalFn(){
+  deletedModal.classList.add('hidden');
+}
+function renderDeletedList(){
+  const deleted = loadDeleted();
+  deletedList.innerHTML = "";
+  if (deleted.length === 0) {
+    deletedList.innerHTML = `<p class="text-sm text-gray-500">削除済みの問題はありません。</p>`;
+    return;
+  }
+  deleted.forEach(id => {
+    const row = document.createElement("div");
+    row.className = "flex items-center justify-between p-2 border rounded";
+    const left = document.createElement("div");
+    left.className = "text-sm font-medium";
+    left.textContent = id;
+    const right = document.createElement("div");
+    const restoreBtn = document.createElement("button");
+    restoreBtn.className = "bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs hover:bg-blue-100";
+    restoreBtn.textContent = "復元";
+    restoreBtn.addEventListener("click", () => {
+      if (!confirm(`${id} を復元して出題対象に戻しますか？`)) return;
+      const arr = loadDeleted().filter(x => x !== id);
+      saveDeleted(arr);
+      renderDeletedList();
+      notice.textContent = "復元しました。問題を開始してください。";
+    });
+    const removePermanentlyBtn = document.createElement("button");
+    removePermanentlyBtn.className = "ml-2 bg-red-50 text-red-700 px-2 py-0.5 rounded text-xs hover:bg-red-100";
+    removePermanentlyBtn.textContent = "完全に削除";
+    removePermanentlyBtn.title = "ローカルの削除リストからも消します（復元できなくなります）";
+    removePermanentlyBtn.addEventListener("click", () => {
+      if (!confirm(`${id} を完全に削除リストからも消します。復元できなくなりますがよいですか？`)) return;
+      const arr = loadDeleted().filter(x => x !== id);
+      saveDeleted(arr);
+      renderDeletedList();
+    });
+    right.appendChild(restoreBtn);
+    right.appendChild(removePermanentlyBtn);
+    row.appendChild(left);
+    row.appendChild(right);
+    deletedList.appendChild(row);
+  });
+}
+function restoreAllDeleted(){
+  if (!confirm("削除済みリストをすべて復元しますか？")) return;
+  saveDeleted([]);
+  renderDeletedList();
+  notice.textContent = "すべて復元しました。問題を開始してください。";
+}
 
 /* ---- イベントリスナー設定 ---- */
 loadBtn.addEventListener("click", () => loadAndRender(false));
@@ -421,28 +601,34 @@ clearStatsBtn.addEventListener("click", () => {
 showStatsBtn.addEventListener("click", () => {
   const s = loadStats();
   const keys = Object.keys(s);
-  if (keys.length === 0) return alert("学習ログはまだありません。");
+  const deleted = loadDeleted();
+  if (keys.length === 0 && deleted.length === 0) return alert("学習ログ・削除リストはまだありません。");
   let msg = "--- 学習ログ ---\nID :: 正答 / 試行 (正答率)\n\n";
   keys.sort().forEach(k => {
     const rate = s[k].total > 0 ? ((s[k].correct/s[k].total)*100).toFixed(1) : "0.0";
     msg += `${k} :: ${s[k].correct} / ${s[k].total} (${rate}%)\n`;
   });
+  if (deleted.length > 0) {
+    msg += `\n--- 削除済み（今後出題しない） ---\n`;
+    deleted.forEach(d => { msg += `${d}\n`; });
+  }
   alert(msg);
 });
 exportStatsBtn.addEventListener("click", () => {
     const stats = loadStats();
-    if (Object.keys(stats).length === 0) {
-        alert("保存する学習ログがありません。");
+    if (Object.keys(stats).length === 0 && loadDeleted().length === 0) {
+        alert("保存する学習ログ・削除リストがありません。");
         return;
     }
-    const blob = new Blob([JSON.stringify(stats, null, 2)], {type: "application/json"});
+    const exportObj = { stats: stats, deleted: loadDeleted() };
+    const blob = new Blob([JSON.stringify(exportObj, null, 2)], {type: "application/json"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "rccm_drill_log.json";
+    a.download = "rccm_drill_log_and_deleted.json";
     a.click();
     URL.revokeObjectURL(url);
-    alert("学習ログを保存しました。");
+    alert("学習ログと削除リストを保存しました。");
 });
 importStatsBtn.addEventListener("click", () => importFile.click());
 importFile.addEventListener("change", (event) => {
@@ -451,14 +637,26 @@ importFile.addEventListener("change", (event) => {
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
-            const importedStats = JSON.parse(e.target.result);
-            if (confirm("現在の学習ログを上書きして、読み込んだログを適用します。よろしいですか？")) {
-                saveStats(importedStats);
-                statsCache = loadStats();
-                alert("学習ログを読み込みました。");
-                quizArea.innerHTML = "";
-                notice.textContent = "ログを読み込みました。問題を開始してください。";
+            const imported = JSON.parse(e.target.result);
+            // 互換性: 旧形式（statsのみ）のままならそのまま適用
+            let importedStats = null;
+            let importedDeleted = null;
+            if (imported && typeof imported === "object" && ("stats" in imported || "deleted" in imported)) {
+              importedStats = imported.stats || {};
+              importedDeleted = imported.deleted || [];
+            } else {
+              // plain stats object
+              importedStats = imported;
             }
+
+            if (!confirm("現在の学習ログを上書きして、読み込んだログ（および削除リスト）を適用します。よろしいですか？")) return;
+
+            if (importedStats) saveStats(importedStats);
+            if (importedDeleted) saveDeleted(importedDeleted);
+            statsCache = loadStats();
+            alert("学習ログと削除リストを読み込みました。");
+            quizArea.innerHTML = "";
+            notice.textContent = "ログを読み込みました。問題を開始してください。";
         } catch (err) {
             alert("ファイルの読み込みに失敗しました。有効なJSONファイルではありません。");
         }
@@ -466,6 +664,17 @@ importFile.addEventListener("change", (event) => {
     reader.readAsText(file);
     event.target.value = '';
 });
+
+manageDeletedBtn.addEventListener("click", () => openDeletedModal());
+closeDeletedModal.addEventListener("click", () => closeDeletedModalFn());
+restoreAllBtn.addEventListener("click", restoreAllDeleted);
+
+copyCsvBtn.addEventListener("click", copyCsvExcludingDeleted);
+
+/* ------------------- 補足 ------------------- */
+/* - 削除はユーザーブラウザのlocalStorageに記録します（CSV本体は変更されません）。 */
+/* - 削除済みは「削除済みの管理」から復元または一括復元できます。 */
+/* - 「CSVをコピー（削除反映）」は現在選択されているCSVファイルを fetch -> parse -> 削除済みIDを除外 -> unparse してクリップボードにコピーします。 */
 </script>
 </body>
 </html>

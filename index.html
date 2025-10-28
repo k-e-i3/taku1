@@ -47,7 +47,7 @@
       <div class="mt-3 pt-3 border-t">
         <details>
           <summary class="cursor-pointer text-sm font-medium text-gray-600 hover:text-gray-900 flex items-center">
-            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="[...]" /></svg>
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="[...]
             詳細設定・ログ管理
           </summary>
           <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -194,16 +194,20 @@ function buildQuestionsFromCSV(text){
     const opt2 = row["選択肢2"] || "";
     const opt3 = row["選択肢3"] || "";
     const opt4 = row["選択肢4"] || "";
+    // 新しく選択肢5に対応
+    const opt5 = row["選択肢5"] || "";
     const explanation = row["解説"] || "";
     const hint = row["ヒント"] || "";
     
     if (!id || !qText || !correctText) return null;
 
-    const rawOptions = [correctText, opt2, opt3, opt4].filter(Boolean);
+    // 正解 + 他選択肢をまとめる（空欄は排除）
+    const rawOptions = [correctText, opt2, opt3, opt4, opt5].filter(Boolean);
     shuffleArray(rawOptions);
 
     const optionsMap = {};
-    const labels = ["a", "b", "c", "d"];
+    // ラベルを5つまで対応（データが少なければ未使用のラベルは出現しません）
+    const labels = ["a", "b", "c", "d", "e"];
     rawOptions.forEach((opt, i) => {
       optionsMap[labels[i]] = opt.trim();
     });

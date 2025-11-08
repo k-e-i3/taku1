@@ -19,7 +19,7 @@
   .hint { background-color: #fffaf0; border-color: #f6e05e; color: #975a16; }
   .feedback-icon { font-size: 1.25rem; font-weight: bold; }
   .correct .feedback-icon::after { content: '〇'; color: #38a169; }
-  .incorrect .feedback-icon::after { content: '?'; color: #e53e3e; }
+  .incorrect .feedback-icon::after { content: '×'; color: #e53e3e; }
   #resultModal.hidden { display: none; }
   #deletedModal.hidden { display: none; }
   details > summary { list-style: none; }
@@ -43,11 +43,31 @@
         <button id="loadBtn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-sm hover:bg-blue-700 transition-colors duration-300">開始</button>
       </div>
 
+      <!-- ジャンル選択 -->
+      <div id="genreFilter" class="mt-4 pt-3 border-t grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
+        <label class="flex items-center text-sm font-medium text-gray-700 cursor-pointer">
+          <input type="checkbox" class="genre-cb h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" value="法規等" checked>
+          <span class="ml-2">法規等</span>
+        </label>
+        <label class="flex items-center text-sm font-medium text-gray-700 cursor-pointer">
+          <input type="checkbox" class="genre-cb h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" value="基準点測量" checked>
+          <span class="ml-2">基準点測量</span>
+        </label>
+        <label class="flex items-center text-sm font-medium text-gray-700 cursor-pointer">
+          <input type="checkbox" class="genre-cb h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" value="地図・GIS" checked>
+          <span class="ml-2">地図・GIS</span>
+        </label>
+        <label class="flex items-center text-sm font-medium text-gray-700 cursor-pointer">
+          <input type="checkbox" class="genre-cb h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" value="応用測量" checked>
+          <span class="ml-2">応用測量</span>
+        </label>
+      </div>
+
       <!-- 下段：詳細設定とログ管理 -->
       <div class="mt-3 pt-3 border-t">
         <details>
           <summary class="cursor-pointer text-sm font-medium text-gray-600 hover:text-gray-900 flex items-center">
-            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="[...]
+            <!-- SVG for dropdown icon can be added here -->
             詳細設定・ログ管理
           </summary>
           <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -189,31 +209,38 @@ function buildQuestionsFromCSV(text){
   const parsed = Papa.parse(text, { header:true, skipEmptyLines:true });
   return parsed.data.map((row) => {
     const id = row["ID"] || "";
+    const genre = row["ジャンル"] || "未分類"; // ★ジャンル列を読み込む
     const qText = row["問題"] || "";
     const correctText = row["正解"] || "";
     const opt2 = row["選択肢2"] || "";
     const opt3 = row["選択肢3"] || "";
     const opt4 = row["選択肢4"] || "";
-    // 新しく選択肢5に対応
     const opt5 = row["選択肢5"] || "";
     const explanation = row["解説"] || "";
     const hint = row["ヒント"] || "";
     
     if (!id || !qText || !correctText) return null;
 
-    // 正解 + 他選択肢をまとめる（空欄は排除）
     const rawOptions = [correctText, opt2, opt3, opt4, opt5].filter(Boolean);
     shuffleArray(rawOptions);
 
     const optionsMap = {};
-    // ラベルを5つまで対応（データが少なければ未使用のラベルは出現しません）
     const labels = ["a", "b", "c", "d", "e"];
     rawOptions.forEach((opt, i) => {
       optionsMap[labels[i]] = opt.trim();
     });
 
     const correctLabel = Object.keys(optionsMap).find(key => optionsMap[key] === correctText.trim());
-    return { id: id.trim(), question: qText.trim(), options: optionsMap, answer: correctLabel, explanation: explanation.trim(), hint: hint.trim() };
+    // ★returnするオブジェクトに genre を追加
+    return { 
+        id: id.trim(), 
+        genre: genre.trim(),
+        question: qText.trim(), 
+        options: optionsMap, 
+        answer: correctLabel, 
+        explanation: explanation.trim(), 
+        hint: hint.trim() 
+    };
   }).filter(Boolean);
 }
 
@@ -243,6 +270,13 @@ async function loadAndRender(isRetry = false) {
   resultModal.classList.add("hidden");
   statsCache = loadStats();
 
+  // ★チェックされているジャンルを取得
+  const selectedGenres = Array.from(document.querySelectorAll('.genre-cb:checked')).map(cb => cb.value);
+  if (selectedGenres.length === 0) {
+      notice.textContent = "ジャンルを1つ以上選択してください。";
+      return;
+  }
+
   const filename = csvSelect.value;
   const num = parseInt(numSelect.value,10) || 10;
   const minCorrect = parseInt(minCorrectInput.value,10) || 3;
@@ -257,8 +291,11 @@ async function loadAndRender(isRetry = false) {
       allQuestions = buildQuestionsFromCSV(text);
     }
 
+    // ★選択されたジャンルでフィルタリング
+    const genreFiltered = allQuestions.filter(q => selectedGenres.includes(q.genre));
+
     // 削除済みIDを除外
-    const filteredAll = allQuestions.filter(q => !deletedIds.has(q.id));
+    const filteredAll = genreFiltered.filter(q => !deletedIds.has(q.id));
 
     let candidates = filteredAll.filter(q => !shouldExclude(q, statsCache, minCorrect, minRate));
     // 足りなければ学習済み（除外された）から補う（ただし削除済みは含めない）
@@ -301,7 +338,7 @@ function renderAll(set){
     
     const questionId = document.createElement("p");
     questionId.className = "text-xs text-gray-400 mt-1";
-    questionId.textContent = `ID: ${q.id}`;
+    questionId.textContent = `ID: ${q.id} [${q.genre}]`; // ジャンルも表示
     
     titleContainer.appendChild(questionTitle);
     titleContainer.appendChild(questionId);
@@ -326,11 +363,9 @@ function renderAll(set){
         deleted.push(q.id);
         saveDeleted(deleted);
       }
-      // remove from currentSet and DOM
       currentSet = currentSet.filter(c => c.id !== q.id);
       card.remove();
       notice.textContent = "問題を削除しました。削除済みの管理から復元できます。";
-      // If all remaining questions answered -> show result
       if (answeredCount === currentSet.length) {
         showResult();
       }
@@ -442,12 +477,9 @@ function onOptionClick(optEl, q, cardEl){
 /* ---- 結果表示処理 ---- */
 function showResult() {
     let correctCount = 0;
-    // 選択されたカード（DOM上にあるもの）で正答数を数える
-    quizArea.querySelectorAll('.bg-white.p-6').forEach(card => {
-        if (!card.querySelector('.option.incorrect')) {
-            if (card.querySelector('.options-container.answered')) {
-                correctCount++;
-            }
+    quizArea.querySelectorAll('.options-container.answered').forEach(container => {
+        if (!container.querySelector('.option.incorrect')) {
+            correctCount++;
         }
     });
 
@@ -477,43 +509,32 @@ async function copyCsvExcludingDeleted() {
     const r = await fetch(filename);
     if (!r.ok) throw new Error(`CSVファイル「${filename}」の取得に失敗しました。`);
     const text = await r.text();
-
-    // parse with header (keep empty lines to preserve structure; remove only rows we need)
     const parsed = Papa.parse(text, { header: true, skipEmptyLines: false });
     if (!parsed || !Array.isArray(parsed.data)) throw new Error("CSVの解析に失敗しました。");
 
-    // If parsed.data is an array of objects, filter by ID
     const filtered = parsed.data.filter(row => {
-      // If the row is entirely empty (all values empty), keep it
       const hasAny = Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== "");
       if (!hasAny) return true;
       const id = (row["ID"] || "").toString().trim();
       return id === "" ? true : !deleted.has(id);
     });
 
-    // Determine fields/order: prefer parsed.meta.fields if available
     const fields = (parsed.meta && parsed.meta.fields) ? parsed.meta.fields : Object.keys(filtered[0] || {});
     const csvOut = Papa.unparse({ fields: fields, data: filtered });
 
-    // Copy to clipboard. BOM not necessary for GitHub paste; keep it off by default.
-    const finalText = csvOut;
-
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(finalText);
+      await navigator.clipboard.writeText(csvOut);
       alert("CSV（削除済みを反映）をクリップボードにコピーしました。\nGitHubのファイル編集画面に貼り付けて保存してください。");
     } else {
-      // Fallback: temporary textarea
       const ta = document.createElement("textarea");
-      ta.value = finalText;
+      ta.value = csvOut;
       document.body.appendChild(ta);
       ta.select();
       try {
         document.execCommand("copy");
         alert("CSVをクリップボードにコピーしました（フォールバック）。GitHubに貼り付けてください。");
       } catch (e) {
-        alert("コピーに失敗しました。以下のテキストを手動でコピーしてください。");
-        const w = window.open("", "_blank");
-        w.document.write("<pre>" + escapeHtml(finalText) + "</pre>");
+        alert("コピーに失敗しました。");
       } finally {
         document.body.removeChild(ta);
       }
@@ -523,7 +544,6 @@ async function copyCsvExcludingDeleted() {
     console.error(err);
   }
 }
-function escapeHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
 /* ---- 削除済み管理モーダル処理 ---- */
 function openDeletedModal(){
@@ -543,34 +563,16 @@ function renderDeletedList(){
   deleted.forEach(id => {
     const row = document.createElement("div");
     row.className = "flex items-center justify-between p-2 border rounded";
-    const left = document.createElement("div");
-    left.className = "text-sm font-medium";
-    left.textContent = id;
-    const right = document.createElement("div");
-    const restoreBtn = document.createElement("button");
-    restoreBtn.className = "bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs hover:bg-blue-100";
-    restoreBtn.textContent = "復元";
-    restoreBtn.addEventListener("click", () => {
-      if (!confirm(`${id} を復元して出題対象に戻しますか？`)) return;
-      const arr = loadDeleted().filter(x => x !== id);
-      saveDeleted(arr);
-      renderDeletedList();
-      notice.textContent = "復元しました。問題を開始してください。";
+    row.innerHTML = `<div class="text-sm font-medium">${id}</div>
+                     <div><button class="restore-btn bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs hover:bg-blue-100" data-id="${id}">復元</button></div>`;
+    row.querySelector('.restore-btn').addEventListener('click', (e) => {
+        const targetId = e.target.dataset.id;
+        if (!confirm(`${targetId} を復元して出題対象に戻しますか？`)) return;
+        const arr = loadDeleted().filter(x => x !== targetId);
+        saveDeleted(arr);
+        renderDeletedList();
+        notice.textContent = "復元しました。問題を開始してください。";
     });
-    const removePermanentlyBtn = document.createElement("button");
-    removePermanentlyBtn.className = "ml-2 bg-red-50 text-red-700 px-2 py-0.5 rounded text-xs hover:bg-red-100";
-    removePermanentlyBtn.textContent = "完全に削除";
-    removePermanentlyBtn.title = "ローカルの削除リストからも消します（復元できなくなります）";
-    removePermanentlyBtn.addEventListener("click", () => {
-      if (!confirm(`${id} を完全に削除リストからも消します。復元できなくなりますがよいですか？`)) return;
-      const arr = loadDeleted().filter(x => x !== id);
-      saveDeleted(arr);
-      renderDeletedList();
-    });
-    right.appendChild(restoreBtn);
-    right.appendChild(removePermanentlyBtn);
-    row.appendChild(left);
-    row.appendChild(right);
     deletedList.appendChild(row);
   });
 }
@@ -587,6 +589,17 @@ retryBtn.addEventListener("click", () => {
     if (currentSet.length > 0) {
         answeredCount = 0;
         resultModal.classList.add("hidden");
+        // Shuffle current set options and re-render
+        currentSet.forEach(q => {
+            const opts = Object.values(q.options);
+            shuffleArray(opts);
+            const newOptsMap = {};
+            const labels = ["a", "b", "c", "d", "e"];
+            opts.forEach((opt, i) => { newOptsMap[labels[i]] = opt; });
+            q.options = newOptsMap;
+            const correctText = Object.keys(q.options).find(key => q.options[key].trim() === (q.explanation.match(/正解は「(.+?)」/)?.[1] || '').trim());
+            q.answer = correctText;
+        });
         renderAll(currentSet);
     }
 });
@@ -632,7 +645,6 @@ exportStatsBtn.addEventListener("click", () => {
     a.download = "rccm_drill_log_and_deleted.json";
     a.click();
     URL.revokeObjectURL(url);
-    alert("学習ログと削除リストを保存しました。");
 });
 importStatsBtn.addEventListener("click", () => importFile.click());
 importFile.addEventListener("change", (event) => {
@@ -642,14 +654,12 @@ importFile.addEventListener("change", (event) => {
     reader.onload = (e) => {
         try {
             const imported = JSON.parse(e.target.result);
-            // 互換性: 旧形式（statsのみ）のままならそのまま適用
             let importedStats = null;
             let importedDeleted = null;
             if (imported && typeof imported === "object" && ("stats" in imported || "deleted" in imported)) {
               importedStats = imported.stats || {};
               importedDeleted = imported.deleted || [];
             } else {
-              // plain stats object
               importedStats = imported;
             }
 
@@ -674,11 +684,6 @@ closeDeletedModal.addEventListener("click", () => closeDeletedModalFn());
 restoreAllBtn.addEventListener("click", restoreAllDeleted);
 
 copyCsvBtn.addEventListener("click", copyCsvExcludingDeleted);
-
-/* ------------------- 補足 ------------------- */
-/* - 削除はユーザーブラウザのlocalStorageに記録します（CSV本体は変更されません）。 */
-/* - 削除済みは「削除済みの管理」から復元または一括復元できます。 */
-/* - 「CSVをコピー（削除反映）」は現在選択されているCSVファイルを fetch -> parse -> 削除済みIDを除外 -> unparse してクリップボードにコピーします。 */
 </script>
 </body>
 </html>

@@ -334,8 +334,7 @@ function renderAll(set){
     
     const questionTitle = document.createElement("p");
     questionTitle.className = "font-bold text-lg";
-    questionTitle.innerHTML = `<span class="text-blue-600 font-semibold">問${idx + 1}.</span> ${q.question}`;
-    
+    questionTitle.innerHTML = `<span class="text-blue-600 font-semibold">問${idx + 1}.</span> ${q.question.replace(/\n/g, '<br>')}`;
     const questionId = document.createElement("p");
     questionId.className = "text-xs text-gray-400 mt-1";
     questionId.textContent = `ID: ${q.id} [${q.genre}]`; // ジャンルも表示

@@ -3,439 +3,854 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>測量士補・測量士 試験対策システム</title>
+<title>択一問題システム（AI対話機能付き）</title>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-    body { font-family: "Noto Sans JP", sans-serif; }
-    /* 解説やメモエリアの初期状態 */
-    .hidden { display: none; }
-    /* 解答・解説エリアのスタイル */
-    .answer-box { background-color: #f0fff4; border: 1px solid #9ae6b4; color: #22543d; }
-    .hint-box { background-color: #fffff0; border: 1px solid #fbd38d; color: #744210; }
-    .ai-box { background-color: #f3e8ff; border: 1px solid #d6bcfa; color: #553c9a; }
+  body { font-family: "Noto Sans JP", "Inter", sans-serif; }
+  .option { transition: background-color .2s, border-color .2s; cursor: pointer; }
+  .option:not(.answered):hover { background-color: #f0f4ff; border-color: #a3bffa; }
+  .correct { background-color: #e6fffa; border-color: #38a169; color: #2f855a; font-weight: 600; }
+  .incorrect { background-color: #fff5f5; border-color: #e53e3e; color: #c53030; }
+  .answered { cursor: default; }
+  
+  /* 各種エリアのスタイル */
+  .explanation, .hint, .memo-area, .ai-area { display:none; margin-top: 1rem; padding: 1rem; border-left-width: 4px; border-radius: 0.25rem; }
+  .explanation { background-color: #f7fafc; border-color: #4a5568; color: #2d3748; }
+  .hint { background-color: #fffaf0; border-color: #f6e05e; color: #975a16; }
+  .memo-area { background-color: #ebf8ff; border-color: #4299e1; color: #2b6cb0; }
+  .ai-area { background-color: #f3e8ff; border-color: #805ad5; color: #553c9a; }
+  
+  .feedback-icon { font-size: 1.25rem; font-weight: bold; }
+  .correct .feedback-icon::after { content: '〇'; color: #38a169; }
+  .incorrect .feedback-icon::after { content: '×'; color: #e53e3e; }
+  
+  #resultModal.hidden { display: none; }
+  #deletedModal.hidden { display: none; }
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  
+  /* CSVエディタ用 */
+  .csv-editor { font-family: monospace; white-space: pre; overflow-x: auto; }
 </style>
 </head>
-<body class="bg-gray-100 text-gray-800">
-
-<div class="container mx-auto p-4 max-w-4xl">
+<body class="bg-gray-100 text-gray-900">
+  <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl">
     
-    <!-- ▼▼▼ コントロールパネル ▼▼▼ -->
-    <div class="bg-white p-4 rounded shadow mb-6">
-        <h1 class="text-xl font-bold mb-4 text-blue-800">過去問・演習ドリル</h1>
-        <div class="flex flex-wrap gap-4 items-end">
+    <!-- コントロールパネル -->
+    <section class="bg-white p-4 rounded-lg shadow-md mb-8">
+      <!-- 上段：主要操作 -->
+      <div class="flex flex-wrap items-center justify-end gap-2">
+        <select id="csvSelect" class="border-gray-300 rounded-md shadow-sm text-sm p-2 flex-grow" title="問題セットを選択"></select>
+        
+        <!-- ここで出題数を選択（復活） -->
+        <select id="numSelect" class="border-gray-300 rounded-md shadow-sm text-sm p-2 w-20" title="出題数を選択">
+          <option value="5">5問</option>
+          <option value="10" selected>10問</option>
+          <option value="20">20問</option>
+          <option value="30">30問</option>
+        </select>
+        
+        <button id="loadBtn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-sm hover:bg-blue-700 transition-colors duration-300">読込＆開始</button>
+      </div>
+
+      <!-- CSVエディタ -->
+      <div class="mt-4 border-t pt-4">
+        <details>
+            <summary class="cursor-pointer text-sm font-bold text-gray-700 bg-gray-100 p-2 rounded hover:bg-gray-200 flex justify-between items-center">
+                <span>📄 CSVデータ確認・編集（クリックで開閉）</span>
+                <span class="text-xs text-gray-500 font-normal">※ここで修正して即実行できます</span>
+            </summary>
+            <div class="mt-2">
+                <textarea id="rawCsvArea" class="w-full h-48 border border-gray-300 rounded p-2 text-xs csv-editor bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500" placeholder="ここにCSVが表示されます..."></textarea>
+                <div class="flex gap-2 mt-2 justify-end">
+                    <button id="resetRawBtn" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300">元のファイルに戻す</button>
+                    <button id="runFromRawBtn" class="bg-teal-600 text-white px-4 py-1.5 rounded text-sm font-bold hover:bg-teal-700">この内容で実行</button>
+                </div>
+            </div>
+        </details>
+      </div>
+
+      <!-- ジャンル選択 -->
+      <div id="genreFilter" class="mt-4 pt-3 border-t grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
+        <label class="flex items-center text-sm font-medium text-gray-700 cursor-pointer">
+          <input type="checkbox" class="genre-cb h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" value="法規等" checked>
+          <span class="ml-2">法規等</span>
+        </label>
+        <label class="flex items-center text-sm font-medium text-gray-700 cursor-pointer">
+          <input type="checkbox" class="genre-cb h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" value="基準点測量" checked>
+          <span class="ml-2">基準点測量</span>
+        </label>
+        <label class="flex items-center text-sm font-medium text-gray-700 cursor-pointer">
+          <input type="checkbox" class="genre-cb h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" value="地図・GIS" checked>
+          <span class="ml-2">地図・GIS</span>
+        </label>
+        <label class="flex items-center text-sm font-medium text-gray-700 cursor-pointer">
+          <input type="checkbox" class="genre-cb h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" value="応用測量" checked>
+          <span class="ml-2">応用測量</span>
+        </label>
+      </div>
+
+      <!-- 下段：詳細設定とログ管理 -->
+      <div class="mt-3 pt-3 border-t">
+        <details>
+          <summary class="cursor-pointer text-sm font-medium text-gray-600 hover:text-gray-900 flex items-center">
+            詳細設定・ログ管理
+          </summary>
+          <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-                <label class="block text-xs font-bold text-gray-500 mb-1">年度</label>
-                <select id="year-select" class="border rounded p-2 min-w-[100px]"></select>
+              <label for="minCorrect" class="block text-xs font-medium text-gray-500">除外条件: 最低正解回数</label>
+              <input id="minCorrect" type="number" min="1" value="3" class="mt-1 w-full border-gray-300 rounded-md shadow-sm text-sm" />
             </div>
             <div>
-                <label class="block text-xs font-bold text-gray-500 mb-1">問題セット</label>
-                <select id="set-select" class="border rounded p-2 min-w-[150px]"></select>
+              <label for="minRate" class="block text-xs font-medium text-gray-500">除外条件: 最低正答率 (%)</label>
+              <input id="minRate" type="number" min="0" max="100" value="80" class="mt-1 w-full border-gray-300 rounded-md shadow-sm text-sm" />
             </div>
-            <div>
-                <label class="block text-xs font-bold text-gray-500 mb-1">番号</label>
-                <select id="qnum-select" class="border rounded p-2 min-w-[80px]"></select>
+          </div>
+          <div class="mt-4 pt-3 border-t flex flex-wrap items-center gap-2">
+            <div class="flex items-center gap-2">
+                <input id="soundToggle" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600" checked />
+                <label for="soundToggle" class="text-sm text-gray-600">音</label>
             </div>
-            <button id="start-btn" class="bg-blue-600 text-white font-bold py-2 px-6 rounded hover:bg-blue-700 transition">
-                移動
-            </button>
+            <div class="flex-grow"></div>
+            <button id="showStats" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-gray-300">ログ</button>
+            <button id="exportStats" class="bg-green-100 text-green-800 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-green-200">保存</button>
+            <button id="importStats" class="bg-green-100 text-green-800 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-green-200">読込</button>
+            <input type="file" id="importFile" class="hidden" accept=".json">
+            <button id="clearStats" class="bg-red-100 text-red-700 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-red-200">リセット</button>
+            <button id="manageDeletedBtn" class="bg-red-50 text-red-700 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-red-100">削除管理</button>
+            <button id="copyCsvBtn" class="bg-indigo-100 text-indigo-800 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-indigo-200">CSVコピー</button>
+          </div>
+        </details>
+      </div>
+      <div id="notice" class="text-sm text-yellow-600 mt-2 text-center"></div>
+    </section>
+
+    <!-- 問題表示領域 -->
+    <main id="quizArea" class="space-y-6"></main>
+
+    <!-- 結果表示モーダル -->
+    <div id="resultModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+      <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md mx-4 text-center">
+        <h2 class="text-2xl font-bold mb-4">結果発表</h2>
+        <p id="scoreText" class="text-4xl font-bold my-4 text-blue-600"></p>
+        <p id="feedbackText" class="text-lg text-gray-700 mb-6"></p>
+        <div class="space-y-3">
+            <button id="retryWrongBtn" class="w-full bg-orange-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-orange-600 hidden">間違えた問題のみリトライ</button>
+            <button id="retryBtn" class="w-full bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-600">同じ問題でもう一度</button>
+            <button id="newQuizBtn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700">新しい問題で挑戦</button>
+            <button id="closeModalBtn" class="w-full bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">閉じる</button>
         </div>
+      </div>
     </div>
 
-    <!-- ▼▼▼ 問題表示エリア ▼▼▼ -->
-    <div id="quiz-container"></div>
-
-    <!-- ▼▼▼ ページ送りボタン ▼▼▼ -->
-    <div class="flex justify-between mt-6 px-2">
-        <button id="prev-btn" class="bg-gray-500 text-white font-bold py-2 px-6 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed">
-            &laquo; 前の問題
-        </button>
-        <button id="next-btn" class="bg-gray-500 text-white font-bold py-2 px-6 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed">
-            次の問題 &raquo;
-        </button>
+    <!-- 削除済み管理モーダル -->
+    <div id="deletedModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+      <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg mx-4">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-bold">削除済みの問題</h3>
+          <div class="flex items-center gap-2">
+            <button id="restoreAllBtn" class="bg-green-100 text-green-800 px-3 py-1 rounded text-sm hover:bg-green-200">全復元</button>
+            <button id="closeDeletedModal" class="bg-gray-100 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-200">閉じる</button>
+          </div>
+        </div>
+        <div id="deletedList" class="space-y-2 text-sm text-gray-700 max-h-72 overflow-auto"></div>
+      </div>
     </div>
 
-</div>
-
-<!-- ▼▼▼ 問題カードのテンプレート（JSで複製して使います） ▼▼▼ -->
-<template id="quiz-card-template">
-    <div class="bg-white p-6 rounded shadow-lg border-t-4 border-blue-500">
-        <!-- ヘッダー -->
-        <div class="flex justify-between items-start mb-4 border-b pb-2">
-            <div>
-                <h2 id="q-title" class="text-xl font-bold text-gray-900"></h2>
-                <p id="q-genre" class="text-sm text-gray-500 mt-1"></p>
-            </div>
-        </div>
-
-        <!-- 問題文 -->
-        <div class="mb-6">
-            <p id="q-text" class="text-lg leading-relaxed whitespace-pre-wrap mb-4"></p>
-            <img id="q-image" src="" alt="問題画像" class="max-w-full h-auto border rounded hidden mx-auto">
-        </div>
-
-        <!-- アクションボタン -->
-        <div class="flex flex-wrap gap-2 mb-4">
-            <button class="hint-btn bg-yellow-400 text-yellow-900 font-bold py-1 px-4 rounded-full text-sm hover:bg-yellow-500 transition">
-                💡 ヒント
-            </button>
-            <button class="answer-btn bg-red-500 text-white font-bold py-1 px-4 rounded-full text-sm hover:bg-red-600 transition">
-                👁️ 解答・解説を表示
-            </button>
-            <button class="memo-btn bg-blue-100 text-blue-700 font-bold py-1 px-4 rounded-full text-sm hover:bg-blue-200 transition">
-                📝 メモ
-            </button>
-        </div>
-
-        <!-- ヒントエリア -->
-        <div id="hint-content" class="hint-box p-4 rounded mb-4 hidden text-sm whitespace-pre-wrap"></div>
-
-        <!-- メモエリア -->
-        <div id="memo-content" class="hidden mb-4 bg-blue-50 p-4 rounded border border-blue-200">
-            <label class="block text-sm font-bold text-blue-800 mb-1">自分用メモ（ブラウザに保存されます）</label>
-            <textarea class="memo-textarea w-full h-24 p-2 border rounded text-sm focus:ring-2 focus:ring-blue-400" placeholder="計算過程や覚え書きなどを入力..."></textarea>
-            <div class="text-right mt-2">
-                <button class="save-memo-btn bg-blue-600 text-white text-xs font-bold py-1 px-3 rounded hover:bg-blue-700">保存</button>
-            </div>
-        </div>
-
-        <!-- 解答・解説エリア -->
-        <div id="answer-content" class="answer-box p-6 rounded hidden text-gray-800 leading-relaxed"></div>
-
-        <!-- AI対話エリア -->
-        <div class="mt-8 pt-4 border-t border-gray-200">
-            <h3 class="font-bold text-purple-700 mb-2 flex items-center">
-                🤖 AIチューターに相談
-            </h3>
-            <div class="bg-gray-50 p-4 rounded border border-gray-300">
-                <p class="text-xs text-gray-600 mb-2">あなたの解答や疑問を入力してください。AIがアドバイスします。</p>
-                <textarea id="user-answer-textarea" class="w-full h-24 p-2 border rounded text-sm mb-2 focus:ring-2 focus:ring-purple-400" placeholder="例：計算してみたら○○になったけど、選択肢と合わない。どこが違う？"></textarea>
-                <button class="ai-btn w-full bg-purple-600 text-white font-bold py-2 rounded hover:bg-purple-700 transition shadow">
-                    この内容でAIに相談する
-                </button>
-                <div id="ai-advice-content" class="ai-box mt-4 p-4 rounded hidden text-sm leading-relaxed whitespace-pre-wrap"></div>
-            </div>
-        </div>
-    </div>
-</template>
+  </div>
 
 <script>
 // =================================================================
 // ▼▼▼ 設定エリア：ここにAPIキーを入れてください ▼▼▼
 const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"; 
-const GEMINI_MODEL = "gemini-1.5-flash"; // または gemini-2.5-flash
+const GEMINI_MODEL = "gemini-1.5-flash"; 
 // =================================================================
 
-// -------------------------------------------------------------
-// ▼▼▼ 問題データの定義エリア ▼▼▼
-// ※外部JSファイルを使わず、ここに直接データを書いても動きます。
-// ※以下は動作確認用のサンプルデータです。
-// -------------------------------------------------------------
+/* ---------------- 設定 ---------------- */
+const csvFilesFallback = ["knowledge.csv", "basic.csv"]; 
+const STORAGE_KEY = "rccmDrillStats_v4_ID";
+const DELETED_KEY = "rccmDrillDeleted_v1";
+const MEMO_KEY = "rccmDrillMemos_v1";
 
-// サンプルデータ（R7 必須問題 No.1）
-window.questions_r7_no1 = [
-    {
-        id: "R7-No1-1",
-        year: "令和7年",
-        q_set: "必須問題",
-        q_num: "No.1",
-        genre: ["法規", "測量法"],
-        question_text: "測量法（昭和24年法律第188号）の規定に関する次の記述のうち、誤っているものはどれか。",
-        answer_text: "3",
-        explanation: "3が誤りです。基本測量の測量成果を使用しようとする者は、あらかじめ国土地理院長の承認を得なければなりませんが、測量を実施しようとする場合は承認ではなく「複製」や「使用」の申請が必要です（文脈による）。",
-        hint: "「承認」が必要なケースと「届出」で済むケースを区別しましょう。",
-        question_image: ""
-    },
-    {
-        id: "R7-No1-2",
-        year: "令和7年",
-        q_set: "必須問題",
-        q_num: "No.2",
-        genre: ["多角測量"],
-        question_text: "次の文は、トータルステーションを用いた基準点測量について述べたものである...",
-        answer_text: "1",
-        explanation: "1が正解です。",
-        hint: "気象補正の公式を思い出してください。",
-        question_image: ""
-    }
-];
+/* ---------------- DOM要素 ---------------- */
+const csvSelect = document.getElementById("csvSelect");
+const loadBtn = document.getElementById("loadBtn");
+const rawCsvArea = document.getElementById("rawCsvArea"); // CSV表示用textarea
+const runFromRawBtn = document.getElementById("runFromRawBtn"); // テキストエリアから実行
+const resetRawBtn = document.getElementById("resetRawBtn"); // 元に戻す
 
-// ★ここに questions_r7_selective などのデータを追記してください★
-// window.questions_r7_selective = [ ... ];
+const retryBtn = document.getElementById("retryBtn");
+const retryWrongBtn = document.getElementById("retryWrongBtn");
+const quizArea = document.getElementById("quizArea");
+const numSelect = document.getElementById("numSelect");
+const minCorrectInput = document.getElementById("minCorrect");
+const minRateInput = document.getElementById("minRate");
+const soundToggle = document.getElementById("soundToggle");
+const clearStatsBtn = document.getElementById("clearStats");
+const showStatsBtn = document.getElementById("showStats");
+const exportStatsBtn = document.getElementById("exportStats");
+const importStatsBtn = document.getElementById("importStats");
+const importFile = document.getElementById("importFile");
+const notice = document.getElementById("notice");
+const resultModal = document.getElementById("resultModal");
+const scoreText = document.getElementById("scoreText");
+const feedbackText = document.getElementById("feedbackText");
+const newQuizBtn = document.getElementById("newQuizBtn");
+const closeModalBtn = document.getElementById("closeModalBtn");
+const manageDeletedBtn = document.getElementById("manageDeletedBtn");
+const deletedModal = document.getElementById("deletedModal");
+const deletedList = document.getElementById("deletedList");
+const closeDeletedModal = document.getElementById("closeDeletedModal");
+const restoreAllBtn = document.getElementById("restoreAllBtn");
+const copyCsvBtn = document.getElementById("copyCsvBtn");
 
-
-// -------------------------------------------------------------
-// ▼▼▼ システムロジック ▼▼▼
-// -------------------------------------------------------------
-document.addEventListener('DOMContentLoaded', () => {
-
-    // DOM要素
-    const quizContainer = document.getElementById('quiz-container');
-    const quizCardTemplate = document.getElementById('quiz-card-template');
-    const prevBtn = document.getElementById('prev-btn');
-    const nextBtn = document.getElementById('next-btn');
-    const yearSelect = document.getElementById('year-select');
-    const setSelect = document.getElementById('set-select');
-    const qnumSelect = document.getElementById('qnum-select');
-    const startBtn = document.getElementById('start-btn');
-
-    let allQuestions = [];
-    let currentQuestionIndex = 0;
-
-    // 年号の正規化
-    function normalizeYear(yearStr) {
-        if (!yearStr) return '';
-        const match = yearStr.match(/令和(\d+)年/);
-        return match ? 'R' + match[1] : yearStr;
-    }
-
-    // データ読み込み
-    function initializeQuestions() {
-        allQuestions = [];
-        // ここに読み込みたい変数名をリストアップ
-        const datasets = [
-            'questions_r7_no1', 'questions_r7_selective',
-            'questions_r6_no1', 'questions_r6_selective',
-            'questions_r5_no1', 'questions_r5_selective'
-        ];
-
-        datasets.forEach(name => {
-            if (typeof window[name] !== 'undefined' && Array.isArray(window[name])) {
-                allQuestions = allQuestions.concat(window[name]);
-            }
-        });
-
-        if (allQuestions.length === 0) {
-            console.warn("問題データが見つかりません。");
+/* ---- 初期化処理 ---- */
+(async function init() {
+  let list = [];
+  try {
+    const r = await fetch("index.json");
+    if (r.ok) list = await r.json();
+  } catch(e) { /* ignore */ }
+  if (!Array.isArray(list) || list.length === 0) list = csvFilesFallback;
+  list.forEach(f => {
+    const opt = document.createElement("option");
+    opt.value = f; opt.textContent = f;
+    csvSelect.appendChild(opt);
+  });
+  
+  // キーボードショートカット
+  document.addEventListener('keydown', (e) => {
+    if (resultModal.classList.contains('hidden')) {
+      const key = e.key;
+      if (['1', '2', '3', '4', '5'].includes(key)) {
+        const index = parseInt(key) - 1;
+        const unanswered = Array.from(quizArea.children).find(card => !card.querySelector('.options-container').classList.contains('answered'));
+        if (unanswered) {
+            const opts = unanswered.querySelectorAll('.option');
+            if (opts[index]) opts[index].click();
         }
-
-        allQuestions.forEach(q => {
-            q.normalizedYear = normalizeYear(q.year);
-        });
+      }
+    } else {
+      if (e.key === 'Enter') closeModalBtn.click();
     }
+  });
+})();
 
-    // コントロールパネル構築
-    function initializeControlPanel() {
-        if (allQuestions.length === 0) return;
+/* ---- WebAudio APIによる効果音 ---- */
+let audioCtx = null;
+function ensureAudioCtx(){ if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+function playTone(freq, startOffset, duration=0.16){
+  ensureAudioCtx();
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = "sine";
+  o.frequency.value = freq;
+  o.connect(g); g.connect(audioCtx.destination);
+  const now = audioCtx.currentTime + startOffset;
+  g.gain.setValueAtTime(0.0001, now);
+  g.gain.exponentialRampToValueAtTime(0.18, now+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, now+duration);
+  o.start(now); o.stop(now+duration+0.02);
+}
+function playDoReMi(){
+  if (!soundToggle.checked) return;
+  playTone(523.25, 0); 
+  playTone(587.33, 0.14); 
+  playTone(659.25, 0.28); 
+}
 
-        const years = [...new Set(allQuestions.map(q => q.normalizedYear))].sort((a, b) => {
-            return parseInt(b.slice(1)) - parseInt(a.slice(1));
-        });
-        
-        yearSelect.innerHTML = '';
-        years.forEach(y => {
-            const opt = document.createElement('option');
-            opt.value = y; opt.textContent = y;
-            yearSelect.appendChild(opt);
-        });
+/* ---- CSVデータから問題オブジェクトを生成 ---- */
+function buildQuestionsFromCSV(text){
+  const parsed = Papa.parse(text, { header:true, skipEmptyLines:true });
+  
+  // 「邺」を改行タグに変換するヘルパー関数
+  const clean = (str) => {
+    if (!str) return "";
+    return str.trim().replaceAll("邺", "<br>");
+  };
 
-        yearSelect.addEventListener('change', updateSetOptions);
-        setSelect.addEventListener('change', updateQNumOptions);
-        startBtn.addEventListener('click', jumpToQuestion);
-
-        updateSetOptions();
-    }
-
-    function updateSetOptions() {
-        const selectedYear = yearSelect.value;
-        const sets = [...new Set(allQuestions.filter(q => q.normalizedYear === selectedYear).map(q => q.q_set))];
-        sets.sort(); // 必要なら並び替えロジック追加
-
-        setSelect.innerHTML = '';
-        sets.forEach(s => {
-            const opt = document.createElement('option');
-            opt.value = s; opt.textContent = s;
-            setSelect.appendChild(opt);
-        });
-        updateQNumOptions();
-    }
-
-    function updateQNumOptions() {
-        const y = yearSelect.value;
-        const s = setSelect.value;
-        const qnums = [...new Set(allQuestions.filter(q => q.normalizedYear === y && q.q_set === s).map(q => q.q_num))];
-        
-        // 数値順ソート
-        qnums.sort((a, b) => {
-            const na = parseInt(a.replace(/[^0-9]/g, '')) || 0;
-            const nb = parseInt(b.replace(/[^0-9]/g, '')) || 0;
-            return na - nb;
-        });
-
-        qnumSelect.innerHTML = '';
-        qnums.forEach(qn => {
-            const opt = document.createElement('option');
-            opt.value = qn; opt.textContent = qn;
-            qnumSelect.appendChild(opt);
-        });
-    }
-
-    function jumpToQuestion() {
-        const y = yearSelect.value;
-        const s = setSelect.value;
-        const n = qnumSelect.value;
-        const idx = allQuestions.findIndex(q => q.normalizedYear === y && q.q_set === s && q.q_num === n);
-
-        if (idx !== -1) {
-            currentQuestionIndex = idx;
-            displayQuestion(idx);
-        } else {
-            alert('該当する問題がありません。');
-        }
-    }
-
-    // 問題表示
-    function displayQuestion(index) {
-        quizContainer.innerHTML = '';
-        const q = allQuestions[index];
-        if (!q) {
-            quizContainer.innerHTML = '<div class="p-4 text-red-500">問題データがありません。</div>';
-            return;
-        }
-
-        const clone = quizCardTemplate.content.cloneNode(true);
-
-        clone.querySelector('#q-title').textContent = `[${q.normalizedYear}] ${q.q_set} ${q.q_num}`;
-        clone.querySelector('#q-genre').textContent = (q.genre || []).join(' / ');
-        clone.querySelector('#q-text').textContent = q.question_text;
-
-        const img = clone.querySelector('#q-image');
-        if (q.question_image) {
-            img.src = q.question_image;
-            img.classList.remove('hidden');
-        }
-
-        // 解答エリア
-        const ansContent = clone.querySelector('#answer-content');
-        let ansHTML = "";
-        if (q.answer) {
-            // オブジェクト形式の場合（穴埋めなど）
-            ansHTML += "<strong>【正答】</strong><br>";
-            for (const [k, v] of Object.entries(q.answer)) ansHTML += `${k}: ${v}<br>`;
-        } else {
-            ansHTML += `<strong>【正答】</strong> <span class="text-xl font-bold text-red-600">${q.answer_text || q.answer_final || '不明'}</span>`;
-        }
-        if (q.explanation) ansHTML += `<hr class="my-3 border-green-300"><div class="text-sm">${q.explanation}</div>`;
-        ansContent.innerHTML = ansHTML;
-
-        // ヒント
-        clone.querySelector('#hint-content').textContent = q.hint || "ヒントはありません。";
-
-        // ボタンイベント
-        const cardRoot = clone.querySelector('div'); // root div
-        const hintBtn = clone.querySelector('.hint-btn');
-        const ansBtn = clone.querySelector('.answer-btn');
-        const memoBtn = clone.querySelector('.memo-btn');
-        const saveMemoBtn = clone.querySelector('.save-memo-btn');
-        const aiBtn = clone.querySelector('.ai-btn');
-
-        const hintEl = clone.querySelector('#hint-content');
-        const ansEl = clone.querySelector('#answer-content');
-        const memoEl = clone.querySelector('#memo-content');
-        const memoTx = clone.querySelector('.memo-textarea');
-        const aiResEl = clone.querySelector('#ai-advice-content');
-        const userTx = clone.querySelector('#user-answer-textarea');
-
-        hintBtn.onclick = () => hintEl.classList.toggle('hidden');
-        ansBtn.onclick = () => ansEl.classList.toggle('hidden');
-        memoBtn.onclick = () => memoEl.classList.toggle('hidden');
-
-        // メモ保存
-        const memoKey = `memo_${q.normalizedYear}_${q.q_num}`;
-        memoTx.value = localStorage.getItem(memoKey) || "";
-        saveMemoBtn.onclick = () => {
-            localStorage.setItem(memoKey, memoTx.value);
-            alert("メモを保存しました");
-        };
-
-        // AI機能
-        aiBtn.onclick = async () => {
-            const input = userTx.value.trim();
-            if (!input) {
-                alert("質問や解答を入力してください");
-                return;
-            }
-            if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("YOUR")) {
-                alert("APIキーが設定されていません。HTMLファイル内のGEMINI_API_KEYを編集してください。");
-                return;
-            }
-
-            aiBtn.textContent = "AI思考中...";
-            aiBtn.disabled = true;
-            aiResEl.classList.remove('hidden');
-            aiResEl.textContent = "問い合わせ中...";
-
-            try {
-                const advice = await getAIAdvice(q, input);
-                aiResEl.innerHTML = `<strong>【AI解説】</strong><br>${advice.replace(/\n/g, '<br>')}`;
-            } catch (e) {
-                aiResEl.textContent = "エラーが発生しました: " + e.message;
-            } finally {
-                aiBtn.textContent = "この内容でAIに相談する";
-                aiBtn.disabled = false;
-            }
-        };
-
-        quizContainer.appendChild(clone);
-        updateNav();
-    }
-
-    function updateNav() {
-        prevBtn.disabled = (currentQuestionIndex === 0);
-        nextBtn.disabled = (currentQuestionIndex >= allQuestions.length - 1);
-    }
-
-    prevBtn.onclick = () => { if(currentQuestionIndex > 0) { currentQuestionIndex--; displayQuestion(currentQuestionIndex); }};
-    nextBtn.onclick = () => { if(currentQuestionIndex < allQuestions.length - 1) { currentQuestionIndex++; displayQuestion(currentQuestionIndex); }};
-
-    // 初期実行
-    initializeQuestions();
-    initializeControlPanel();
-    if(allQuestions.length > 0) displayQuestion(0);
-    else quizContainer.innerHTML = '<div class="p-8 text-center text-gray-500">問題データがロードされていません。<br>HTMLソース内の script タグにデータを追記してください。</div>';
-});
-
-// -------------------------------------------------------------
-// ▼▼▼ API通信関数 ▼▼▼
-// -------------------------------------------------------------
-async function getAIAdvice(q, input) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+  return parsed.data.map((row) => {
+    const id = row["ID"] || "";
+    const genre = row["ジャンル"] || "未分類";
+    const qText = clean(row["問題"]);
+    const correctText = clean(row["正解"]);
+    const opt2 = clean(row["選択肢2"]);
+    const opt3 = clean(row["選択肢3"]);
+    const opt4 = clean(row["選択肢4"]);
+    const opt5 = clean(row["選択肢5"]);
+    const explanation = clean(row["解説"]);
+    const hint = clean(row["ヒント"]);
     
-    // 正解テキストの生成
-    let correctStr = q.answer_text || "";
-    if (!correctStr && q.answer) correctStr = JSON.stringify(q.answer);
+    if (!id || !qText || !correctText) return null;
 
-    const prompt = `
-あなたは測量士国家試験の講師です。以下の問題について、受験生の入力に対してアドバイスしてください。
-【問題】${q.question_text}
-【正解】${correctStr}
-【解説】${q.explanation || "なし"}
-【受験生の入力】${input}
+    const rawOptions = [correctText, opt2, opt3, opt4, opt5].filter(Boolean);
+    shuffleArray(rawOptions);
 
-指示：
-1. 受験生の入力が正しいか、間違っているか判定。
-2. 間違いなら、なぜ違うか優しく解説。
-3. 学習のポイントを一言。
+    const optionsMap = {};
+    const labels = ["a", "b", "c", "d", "e"];
+    rawOptions.forEach((opt, i) => {
+      optionsMap[labels[i]] = opt; // 変換済み
+    });
+
+    const correctLabel = Object.keys(optionsMap).find(key => optionsMap[key] === correctText);
+    return { 
+        id: id.trim(), 
+        genre: genre.trim(),
+        question: qText, 
+        options: optionsMap, 
+        answer: correctLabel, 
+        correctText: correctText, // API送信用に保持
+        explanation: explanation, 
+        hint: hint 
+    };
+  }).filter(Boolean);
+}
+
+/* ---- 学習ログ・メモの操作 ---- */
+function loadStats(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }catch(e){return{}} }
+function saveStats(obj){ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }
+function loadDeleted(){ try{ return JSON.parse(localStorage.getItem(DELETED_KEY) || "[]"); }catch(e){ return []; } }
+function saveDeleted(arr){ localStorage.setItem(DELETED_KEY, JSON.stringify(arr)); }
+function loadMemos(){ try{ return JSON.parse(localStorage.getItem(MEMO_KEY) || "{}"); }catch(e){return{}} }
+function saveMemos(obj){ localStorage.setItem(MEMO_KEY, JSON.stringify(obj)); }
+
+/* ---- 出題除外条件の判定 ---- */
+function shouldExclude(q, stats, minCorrect, minRate){
+  const rec = stats[q.id] || { correct:0, total:0 };
+  if (rec.total === 0) return false;
+  const rate = (rec.correct / rec.total) * 100;
+  return (rec.correct >= minCorrect) && (rate >= minRate);
+}
+
+/* ---- 問題の読み込みと表示 ---- */
+let currentSet = [], allQuestions = [], statsCache = loadStats(), memosCache = loadMemos(), answeredCount = 0;
+let lastWrongIds = []; 
+
+// useTextarea: trueなら画面上のCSVエディタの内容を使う
+async function loadAndRender(isRetry = false, onlyWrong = false, useTextarea = false) {
+  notice.textContent = "";
+  quizArea.innerHTML = "";
+  answeredCount = 0;
+  resultModal.classList.add("hidden");
+  statsCache = loadStats();
+  memosCache = loadMemos();
+
+  if (isRetry) {
+      if (onlyWrong) {
+          const wrongSet = currentSet.filter(q => lastWrongIds.includes(q.id));
+          currentSet = wrongSet;
+      }
+      if(currentSet.length === 0) {
+          notice.textContent = "リトライする問題がありません。";
+          return;
+      }
+      renderAll(currentSet);
+      return;
+  }
+
+  // 新規ロード
+  const selectedGenres = Array.from(document.querySelectorAll('.genre-cb:checked')).map(cb => cb.value);
+  if (selectedGenres.length === 0) {
+      notice.textContent = "ジャンルを1つ以上選択してください。";
+      return;
+  }
+
+  const filename = csvSelect.value;
+  const num = parseInt(numSelect.value,10) || 10;
+  const minCorrect = parseInt(minCorrectInput.value,10) || 3;
+  const minRate = parseFloat(minRateInput.value) || 80;
+  const deletedIds = new Set(loadDeleted());
+
+  try {
+    let text = "";
+    if (useTextarea) {
+        text = rawCsvArea.value;
+        if (!text.trim()) throw new Error("CSVエディタが空です。");
+    } else {
+        const r = await fetch(filename);
+        if (!r.ok) throw new Error(`CSVファイル「${filename}」の取得に失敗しました。`);
+        text = await r.text();
+        rawCsvArea.value = text;
+    }
+
+    allQuestions = buildQuestionsFromCSV(text);
+
+    const genreFiltered = allQuestions.filter(q => selectedGenres.includes(q.genre));
+    const filteredAll = genreFiltered.filter(q => !deletedIds.has(q.id));
+
+    let candidates = filteredAll.filter(q => !shouldExclude(q, statsCache, minCorrect, minRate));
+    if (candidates.length < num && filteredAll.length >= num) {
+      notice.textContent = `苦手問題が${candidates.length}問しかありませんでした。学習済みの問題から補充して出題します。`;
+      const excluded = filteredAll.filter(q => shouldExclude(q, statsCache, minCorrect, minRate));
+      shuffleArray(excluded);
+      candidates.push(...excluded.slice(0, num - candidates.length));
+    }
+    shuffleArray(candidates);
+    currentSet = candidates.slice(0, Math.min(num, filteredAll.length));
+    
+    if (currentSet.length === 0) {
+        notice.textContent = "出題できる問題がありません。";
+        return;
+    }
+    renderAll(currentSet);
+  } catch(err) {
+    quizArea.innerHTML = `<div class="bg-red-100 p-4 rounded text-red-700">${err.message}</div>`;
+    console.error(err);
+  }
+}
+
+/* ---- 全問題カードの描画 ---- */
+function renderAll(set){
+  quizArea.innerHTML = "";
+  set.forEach((q, idx) => {
+    const card = document.createElement("div");
+    card.className = "bg-white p-6 rounded-lg shadow-md question-card";
+    card.dataset.id = q.id;
+
+    // ヘッダー
+    const header = document.createElement("div");
+    header.className = "flex justify-between items-start mb-4";
+    
+    const titleContainer = document.createElement("div");
+    titleContainer.className = "flex-1 mr-4";
+    
+    const questionTitle = document.createElement("p");
+    questionTitle.className = "font-bold text-lg";
+    questionTitle.innerHTML = `<span class="text-blue-600 font-semibold">問${idx + 1}.</span> ${q.question}`;
+    const questionId = document.createElement("p");
+    questionId.className = "text-xs text-gray-400 mt-1";
+    questionId.textContent = `ID: ${q.id} [${q.genre}]`;
+    
+    titleContainer.appendChild(questionTitle);
+    titleContainer.appendChild(questionId);
+    
+    const rightGroup = document.createElement("div");
+    rightGroup.className = "flex items-center gap-2";
+
+    const statsBadge = document.createElement("div");
+    statsBadge.className = "stats-badge text-xs font-bold px-2.5 py-1 rounded-full text-white whitespace-nowrap";
+    updateStatsBadge(statsBadge, q.id);
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "bg-red-50 text-red-700 px-2 py-1 rounded text-xs font-medium hover:bg-red-100";
+    deleteBtn.textContent = "削除";
+    deleteBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (!confirm("この問題を削除（今後出題しない）しますか？")) return;
+      const deleted = loadDeleted();
+      if (!deleted.includes(q.id)) { deleted.push(q.id); saveDeleted(deleted); }
+      currentSet = currentSet.filter(c => c.id !== q.id);
+      card.remove();
+      if (answeredCount === currentSet.length) showResult();
+    });
+
+    rightGroup.appendChild(statsBadge);
+    rightGroup.appendChild(deleteBtn);
+    header.appendChild(titleContainer);
+    header.appendChild(rightGroup);
+    card.appendChild(header);
+
+    // ボタンエリア
+    const btnGroup = document.createElement("div");
+    btnGroup.className = "flex flex-wrap gap-2 mb-4";
+
+    // ヒントボタン
+    if (q.hint) {
+        const hintBtn = document.createElement("button");
+        hintBtn.className = "bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-semibold hover:bg-yellow-200";
+        hintBtn.textContent = "💡 ヒント";
+        const hintEl = document.createElement("div");
+        hintEl.className = "hint";
+        hintEl.innerHTML = `<strong class="font-semibold">【ヒント】</strong> ${q.hint}`;
+        
+        hintBtn.addEventListener("click", () => {
+          const isShown = hintEl.style.display === "block";
+          hintEl.style.display = isShown ? "none" : "block";
+        });
+        btnGroup.appendChild(hintBtn);
+        card.appendChild(hintEl);
+    }
+
+    // メモボタン
+    const memoBtn = document.createElement("button");
+    const hasMemo = memosCache[q.id] && memosCache[q.id].trim().length > 0;
+    memoBtn.className = `px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+        hasMemo ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+    }`;
+    memoBtn.innerHTML = hasMemo ? "📝 メモあり" : "📝 自分用メモ";
+    
+    const memoEl = document.createElement("div");
+    memoEl.className = "memo-area";
+    const memoTextarea = document.createElement("textarea");
+    memoTextarea.className = "w-full p-2 border rounded text-sm bg-white h-24";
+    memoTextarea.placeholder = "ここに自分用のメモを残せます（自動保存）";
+    memoTextarea.value = memosCache[q.id] || "";
+    
+    memoTextarea.addEventListener("input", (e) => {
+        const val = e.target.value;
+        memosCache[q.id] = val;
+        saveMemos(memosCache);
+        if (val.trim().length > 0) {
+            memoBtn.className = 'bg-blue-500 text-white hover:bg-blue-600 px-3 py-1 rounded-full text-xs font-semibold transition-colors';
+            memoBtn.innerHTML = "📝 メモあり";
+        } else {
+            memoBtn.className = 'bg-blue-100 text-blue-800 hover:bg-blue-200 px-3 py-1 rounded-full text-xs font-semibold transition-colors';
+            memoBtn.innerHTML = "📝 自分用メモ";
+        }
+    });
+
+    memoBtn.addEventListener("click", () => {
+        const isShown = memoEl.style.display === "block";
+        memoEl.style.display = isShown ? "none" : "block";
+        if (!isShown) memoTextarea.focus();
+    });
+
+    // ★ AIボタン (実際のAPI呼び出し)
+    const aiBtn = document.createElement("button");
+    aiBtn.className = "bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-xs font-semibold hover:bg-purple-200 transition-colors";
+    aiBtn.innerHTML = "🤖 AIに聞く";
+
+    const aiEl = document.createElement("div");
+    aiEl.className = "ai-area";
+    // AI用の入力エリアと結果表示エリア
+    aiEl.innerHTML = `
+        <div class="text-sm font-bold mb-2">🤖 AIチューターへの質問</div>
+        <textarea class="w-full p-2 border border-purple-200 rounded text-sm mb-2 h-20" placeholder="質問を入力してください（例：なぜ選択肢2が間違っているの？）"></textarea>
+        <button class="bg-purple-600 text-white font-bold py-1 px-4 rounded text-xs hover:bg-purple-700 w-full mb-2">質問を送信</button>
+        <div class="ai-response text-sm text-gray-800 whitespace-pre-wrap bg-white p-3 rounded border border-purple-200 hidden"></div>
     `;
 
-    const res = await fetch(url, {
+    // AIイベント
+    const aiTextarea = aiEl.querySelector("textarea");
+    const aiSubmitBtn = aiEl.querySelector("button");
+    const aiResponseDiv = aiEl.querySelector(".ai-response");
+
+    aiSubmitBtn.addEventListener("click", async () => {
+        const userQ = aiTextarea.value.trim();
+        if(!userQ) { alert("質問内容を入力してください"); return; }
+        if(!GEMINI_API_KEY || GEMINI_API_KEY.includes("YOUR")) { alert("APIキーが設定されていません"); return; }
+        
+        aiSubmitBtn.disabled = true;
+        aiSubmitBtn.textContent = "AI思考中...";
+        aiResponseDiv.textContent = "通信中...";
+        aiResponseDiv.classList.remove("hidden");
+        
+        try {
+            const advice = await getAIAdvice(q, userQ);
+            aiResponseDiv.innerHTML = `<strong>【AIの回答】</strong><br>${advice.replace(/\n/g, '<br>')}`;
+        } catch(e) {
+            aiResponseDiv.textContent = "エラー: " + e.message;
+        } finally {
+            aiSubmitBtn.disabled = false;
+            aiSubmitBtn.textContent = "質問を送信";
+        }
+    });
+
+    aiBtn.addEventListener("click", () => {
+        const isShown = aiEl.style.display === "block";
+        aiEl.style.display = isShown ? "none" : "block";
+    });
+
+    btnGroup.appendChild(memoBtn);
+    btnGroup.appendChild(aiBtn); 
+    card.appendChild(btnGroup);
+    card.appendChild(memoEl);
+    card.appendChild(aiEl); 
+
+    // 選択肢
+    const optsContainer = document.createElement("div");
+    optsContainer.className = "options-container space-y-3";
+    Object.keys(q.options).forEach(lbl => {
+      const txt = q.options[lbl];
+      const opt = document.createElement("div");
+      opt.className = "option border border-gray-300 p-3 rounded-lg flex justify-between items-center";
+      opt.dataset.label = lbl;
+      opt.innerHTML = `<span><span class="font-bold mr-3">${lbl.toUpperCase()}.</span>${txt}</span><span class="feedback-icon"></span>`;
+      opt.addEventListener("click", () => onOptionClick(opt, q, card));
+      optsContainer.appendChild(opt);
+    });
+    card.appendChild(optsContainer);
+
+    // 解説
+    const exp = document.createElement("div");
+    exp.className = "explanation";
+    exp.innerHTML = `<p><strong class="font-semibold">【解説】</strong> ${q.explanation || "（解説なし）"}</p>`;
+    card.appendChild(exp);
+
+    quizArea.appendChild(card);
+  });
+}
+
+/* ---- ステータスバッジの更新 ---- */
+function updateStatsBadge(badge, qid) {
+    const st = statsCache[qid] || { correct: 0, total: 0 };
+    const rate = st.total > 0 ? (st.correct / st.total) * 100 : -1;
+
+    badge.textContent = `${st.correct}/${st.total}`;
+    badge.classList.remove("bg-gray-400", "bg-red-500", "bg-yellow-500", "bg-green-500");
+
+    if (rate === -1) badge.classList.add("bg-gray-400"); 
+    else if (rate < 50) badge.classList.add("bg-red-500");
+    else if (rate < 80) badge.classList.add("bg-yellow-500");
+    else badge.classList.add("bg-green-500");
+}
+
+/* ---- 選択肢クリック時の処理 ---- */
+function onOptionClick(optEl, q, cardEl){
+  const optsContainer = cardEl.querySelector(".options-container");
+  if (optsContainer.classList.contains("answered")) return;
+  optsContainer.classList.add("answered");
+
+  answeredCount++;
+  const selectedLbl = optEl.dataset.label;
+  const correctLbl = q.answer;
+  
+  cardEl.querySelectorAll(".option").forEach(o => {
+    o.classList.add("answered");
+    if (o.dataset.label === correctLbl) o.classList.add("correct");
+  });
+
+  let isCorrect = false;
+  if (selectedLbl !== correctLbl) {
+    optEl.classList.add("incorrect");
+  } else {
+    isCorrect = true;
+    playDoReMi();
+  }
+  
+  const exp = cardEl.querySelector(".explanation");
+  if (exp) exp.style.display = "block";
+
+  const stats = loadStats();
+  if (!stats[q.id]) stats[q.id] = { correct:0, total:0 };
+  stats[q.id].total++;
+  if (isCorrect) stats[q.id].correct++;
+  saveStats(stats);
+  statsCache = stats;
+
+  const statsBadge = cardEl.querySelector(".stats-badge");
+  updateStatsBadge(statsBadge, q.id);
+
+  if (answeredCount === currentSet.length) {
+    showResult();
+  }
+}
+
+/* ---- 結果表示処理 ---- */
+function showResult() {
+    let correctCount = 0;
+    lastWrongIds = [];
+    
+    const cards = document.querySelectorAll('.question-card');
+    cards.forEach(card => {
+        const opts = card.querySelector('.options-container');
+        if (opts && !opts.querySelector('.option.incorrect')) {
+            correctCount++;
+        } else {
+            lastWrongIds.push(card.dataset.id);
+        }
+    });
+
+    const total = currentSet.length;
+    scoreText.textContent = `${correctCount} / ${total} 正解`;
+    
+    let feedback = '';
+    const rate = total > 0 ? (correctCount / total) * 100 : 0;
+    if (rate === 100) feedback = '素晴らしい！全問正解です。';
+    else if (rate >= 80) feedback = '優秀です！この調子で知識を定着させましょう。';
+    else feedback = '間違えた問題の解説と、自分用メモを活用して復習しましょう！';
+    feedbackText.textContent = feedback;
+
+    if (lastWrongIds.length > 0) {
+        retryWrongBtn.classList.remove('hidden');
+        retryWrongBtn.textContent = `間違えた${lastWrongIds.length}問のみリトライ`;
+        retryWrongBtn.onclick = () => {
+             loadAndRender(true, true);
+        };
+    } else {
+        retryWrongBtn.classList.add('hidden');
+    }
+
+    resultModal.classList.remove('hidden');
+}
+
+/* ---- AI API関数 ---- */
+async function getAIAdvice(q, userInput) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+    
+    const prompt = `あなたは測量士試験のプロ講師です。
+以下の問題について、生徒の質問に答えてください。
+
+【問題】${q.question}
+【正解】${q.correctText}
+【解説】${q.explanation}
+
+【生徒の質問】
+${userInput}
+
+【指示】
+・簡潔に、分かりやすく答えてください。
+・励ましの言葉を含めてください。`;
+
+    const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     });
 
-    if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error?.message || res.statusText);
+    if (!response.ok) {
+        throw new Error("APIエラー: " + response.statusText);
     }
-
-    const data = await res.json();
+    const data = await response.json();
     try {
         return data.candidates[0].content.parts[0].text;
     } catch(e) {
-        return "AIからの応答を解析できませんでした。";
+        return "応答の解析に失敗しました。";
     }
 }
+
+/* ---- ユーティリティ関数 ---- */
+function shuffleArray(a){ for (let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
+
+/* ---- CSVをコピー ---- */
+async function copyCsvExcludingDeleted() {
+    const deleted = new Set(loadDeleted());
+    const filtered = allQuestions.filter(q => !deleted.has(q.id));
+    
+    if (filtered.length === 0) {
+        alert("有効な問題データがありません。");
+        return;
+    }
+    // メモリ上のデータからCSV構築（簡易版）
+    const headers = ["ID","ジャンル","問題","正解","選択肢2","選択肢3","選択肢4","選択肢5","解説","ヒント"];
+    let csvContent = headers.join(",") + "\n";
+
+    filtered.forEach(q => {
+        // q.optionsはシャッフル済みなので、originalの正解を探す
+        // 簡易実装として、正解とそれ以外に分ける
+        const correctTxt = q.correctText;
+        const others = Object.values(q.options).filter(v => v !== correctTxt);
+        
+        // エスケープ処理
+        const escape = (s) => {
+            if(!s) return "";
+            let str = s.toString().replaceAll("<br>", "邺"); // 改行を邺に戻す
+            if(str.includes(",") || str.includes("\"") || str.includes("\n")) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        };
+        
+        const row = [
+            q.id, q.genre, q.question, correctTxt,
+            others[0]||"", others[1]||"", others[2]||"", others[3]||"",
+            q.explanation, q.hint
+        ].map(escape);
+        
+        csvContent += row.join(",") + "\n";
+    });
+
+    try {
+        await navigator.clipboard.writeText(csvContent);
+        alert(`有効な${filtered.length}問をコピーしました。\n（改行は「邺」に戻しました）`);
+    } catch(e) {
+        alert("コピー失敗");
+    }
+}
+
+/* ---- ログのExport/Import ---- */
+exportStatsBtn.addEventListener("click", () => {
+    const stats = loadStats();
+    const memos = loadMemos();
+    const deleted = loadDeleted();
+    const exportObj = { stats: stats, deleted: deleted, memos: memos };
+    const blob = new Blob([JSON.stringify(exportObj, null, 2)], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "rccm_drill_data.json";
+    a.click();
+    URL.revokeObjectURL(url);
+});
+
+importFile.addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const imported = JSON.parse(e.target.result);
+            const iStats = imported.stats || (imported.correct ? null : imported);
+            const iDeleted = imported.deleted || [];
+            const iMemos = imported.memos || {};
+
+            if (!confirm("現在の学習ログ・メモを上書きします。よろしいですか？")) return;
+
+            if (iStats && Object.keys(iStats).length) saveStats(iStats);
+            if (iDeleted) saveDeleted(iDeleted);
+            if (iMemos) saveMemos(iMemos);
+            
+            alert("データを読み込みました。");
+            location.reload(); 
+        } catch (err) {
+            alert("読み込み失敗: " + err);
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+});
+
+/* ---- イベントリスナー設定 ---- */
+loadBtn.addEventListener("click", () => loadAndRender(false, false, false));
+runFromRawBtn.addEventListener("click", () => loadAndRender(false, false, true));
+resetRawBtn.addEventListener("click", () => loadAndRender(false, false, false));
+
+retryBtn.addEventListener("click", () => loadAndRender(true));
+newQuizBtn.addEventListener("click", () => loadAndRender(false));
+closeModalBtn.addEventListener("click", () => resultModal.classList.add("hidden"));
+clearStatsBtn.addEventListener("click", () => {
+  if (confirm("ログとメモを全て消去しますか？")) {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(MEMO_KEY);
+    alert("リセットしました。");
+    location.reload();
+  }
+});
+showStatsBtn.addEventListener("click", () => {
+  const s = loadStats();
+  const m = loadMemos();
+  let msg = "--- 学習ログ ---\n";
+  let count = 0;
+  Object.keys(s).forEach(k => {
+      if (count++ < 20) msg += `${k}: ${s[k].correct}/${s[k].total}\n`;
+  });
+  if(Object.keys(m).length > 0) msg += `\n--- メモあり: ${Object.keys(m).length}件 ---`;
+  alert(msg + "\n(全件は保存データで確認してください)");
+});
+manageDeletedBtn.addEventListener("click", () => {
+    deletedList.innerHTML = "";
+    loadDeleted().forEach(id => {
+        const div = document.createElement("div");
+        div.className = "flex justify-between border p-2";
+        div.innerHTML = `<span>${id}</span><button class="text-blue-500 text-xs" onclick="restore('${id}')">復元</button>`;
+        deletedList.appendChild(div);
+    });
+    deletedModal.classList.remove("hidden");
+});
+window.restore = (id) => {
+    const d = loadDeleted().filter(x => x !== id);
+    saveDeleted(d);
+    manageDeletedBtn.click();
+};
+closeDeletedModal.addEventListener("click", () => deletedModal.classList.add("hidden"));
+restoreAllBtn.addEventListener("click", () => {
+    if(confirm("全復元しますか？")) { saveDeleted([]); manageDeletedBtn.click(); }
+});
+importStatsBtn.addEventListener("click", () => importFile.click());
+copyCsvBtn.addEventListener("click", copyCsvExcludingDeleted);
+
 </script>
 </body>
 </html>

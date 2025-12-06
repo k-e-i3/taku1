@@ -21,7 +21,7 @@
   .incorrect { background-color: #fff5f5; border-color: #e53e3e; color: #c53030; }
   .answered { cursor: default; }
   
-  .feedback-icon { font-size: 1.25rem; font-weight: bold; }
+  .feedback-icon { font-size: 1.25rem; font-weight: bold; margin-left: auto; }
   .correct .feedback-icon::after { content: '〇'; color: #38a169; }
   .incorrect .feedback-icon::after { content: '×'; color: #e53e3e; }
   
@@ -163,7 +163,7 @@ const DELETED_KEY = "rccmDrillDeleted_v1";
 const MEMO_KEY = "rccmDrillMemos_v1";
 const SETTINGS_KEY = "rccmDrillSettings_v1"; 
 const API_KEY_STORAGE = "rccmDrillApiKey_v1"; 
-const AI_MODEL = "gemini-2.5-flash-lite"; // 指定モデル
+const AI_MODEL = "gemini-2.5-flash-lite"; 
 
 /* DOM要素 */
 const els = {
@@ -191,7 +191,7 @@ const els = {
 /* 状態変数 */
 let currentSet = [], allQuestions = [], statsCache = loadStats(), memosCache = loadMemos();
 let answeredCount = 0, lastWrongIds = [], isManualMode = false;
-let chatHistories = {}; // チャット履歴保存用 { questionId: [{role, parts}] }
+let chatHistories = {};
 
 /* 初期化 */
 (async function init() {
@@ -290,7 +290,7 @@ function shouldExclude(q, s, mc, mr){
 async function loadAndRender(isRetry=false, onlyWrong=false, forceManual=false, forceFetch=false) {
   els.notice.textContent = ""; els.quizArea.innerHTML = ""; answeredCount=0;
   els.resultModal.classList.add("hidden"); statsCache=loadStats(); memosCache=loadMemos();
-  chatHistories = {}; // リセット
+  chatHistories = {};
 
   if(forceFetch) { isManualMode=false; els.indicator.classList.add('hidden'); }
   else if(forceManual) { isManualMode=true; els.indicator.classList.remove('hidden'); }
@@ -342,8 +342,9 @@ function renderAll(set){
   els.quizArea.innerHTML = "";
   const font = els.font.value;
   set.forEach((q, i) => {
+    // ★修正: ここに 'question-card' クラスを復活させました！
     const card = document.createElement("div");
-    card.className = `bg-white p-4 rounded shadow ${font}`;
+    card.className = `bg-white p-4 rounded shadow question-card ${font}`;
     card.dataset.id = q.id;
     
     const head = document.createElement("div");
@@ -391,13 +392,11 @@ function renderAll(set){
     const contentArea = document.createElement("div");
     contentArea.className = "p-3 bg-white min-h-[100px]";
 
-    // 1. ヒント
     const hintDiv = document.createElement("div");
     hintDiv.className = "hidden text-sm text-yellow-800";
     hintDiv.innerHTML = q.hint ? `<strong>ヒント:</strong> ${q.hint}` : "ヒントはありません。";
     contentDivs["hint"] = hintDiv; contentArea.appendChild(hintDiv);
 
-    // 2. メモ
     const memoDiv = document.createElement("div");
     memoDiv.className = "hidden";
     const memoTxt = document.createElement("textarea");
@@ -408,7 +407,6 @@ function renderAll(set){
     memoDiv.appendChild(memoTxt);
     contentDivs["memo"] = memoDiv; contentArea.appendChild(memoDiv);
 
-    // 3. AI (チャット形式)
     const aiDiv = document.createElement("div");
     aiDiv.className = "hidden flex flex-col";
     aiDiv.innerHTML = `
@@ -424,7 +422,6 @@ function renderAll(set){
     const aiSendBtn = aiDiv.querySelector("button");
     const aiInput = aiDiv.querySelector("input");
 
-    // チャット送信
     const sendChat = async () => {
         const k = localStorage.getItem(API_KEY_STORAGE);
         if(!k) { alert("右上の「APIキー設定」からキーを保存してください"); return; }
@@ -457,12 +454,13 @@ function renderAll(set){
     tabContainer.appendChild(contentArea);
     card.appendChild(tabContainer);
 
+    // 選択肢 (★修正: レイアウトを左寄せ、自然な配置に)
     const opts = document.createElement("div");
     opts.className = "options-container space-y-2";
     Object.keys(q.options).forEach(lbl => {
         const row = document.createElement("div");
-        row.className = "option border p-3 rounded flex justify-between";
-        row.innerHTML = `<span class="font-bold text-blue-600 mr-2">${lbl.toUpperCase()}.</span><span>${q.options[lbl]}</span>`;
+        row.className = "option border p-3 rounded flex justify-start items-start gap-2";
+        row.innerHTML = `<span class="font-bold text-blue-600 whitespace-nowrap pt-0.5">${lbl.toUpperCase()}.</span><span>${q.options[lbl]}</span><span class="feedback-icon"></span>`;
         row.onclick = () => {
             if(opts.classList.contains("answered")) return;
             opts.classList.add("answered"); answeredCount++;
@@ -497,25 +495,25 @@ function showResult() {
     document.querySelectorAll('.question-card').forEach(c => {
         if(!c.querySelector('.incorrect')) ok++; else lastWrongIds.push(c.dataset.id);
     });
-    els.score.textContent = `${ok} / ${currentSet.length} 正解`;
+    // ★修正: 正答率の計算と表示を復活
+    const total = currentSet.length;
+    const rate = total > 0 ? Math.round((ok/total)*100) : 0;
+    els.score.innerHTML = `${ok} / ${total} 正解 <span class="text-xl text-gray-500">(${rate}%)</span>`;
+    
+    // ★修正: リトライボタンの表示ロジックも、lastWrongIdsが正しく取れるようになったので直ります
     els.retryWrong.classList.toggle('hidden', lastWrongIds.length===0);
     els.resultModal.classList.remove('hidden');
 }
 
 async function getAIChatResponse(q, history, key) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent?key=${key}`;
-    
-    // システムプロンプト（文脈）
     const systemContext = `あなたは親切で知識豊富な測量士試験の講師です。以下の問題について受験生と対話してください。
 【問題】${q.question}
 【正解】${q.correctText}
 【解説】${q.explanation}
 指示: 正誤の理由を具体的に、かつ丁寧に解説してください。`;
 
-    // 履歴のDeepCopyを作成
     let contents = JSON.parse(JSON.stringify(history));
-    
-    // 最初のメッセージにシステムコンテキストを結合して文脈を持たせる
     if(contents.length > 0) {
         contents[0].parts[0].text = systemContext + "\n\n【受験生の質問】\n" + contents[0].parts[0].text;
     }

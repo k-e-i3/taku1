@@ -562,7 +562,7 @@ async function getAIChatResponse(q, history, key) {
 【問題】${q.question}
 【正解】${q.correctText}
 【解説】${q.explanation}
-指示: 正誤の理由を具体的に、かつ丁寧に解説してください。`;
+指示: 簡潔な質問には正誤の理由を簡潔に解説してださい。受験生がより細かく説明が欲しい場合には長めにお願いします。`;
 
     let contents = JSON.parse(JSON.stringify(history));
     if(contents.length > 0) {

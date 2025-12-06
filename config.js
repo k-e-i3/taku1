@@ -8,5 +8,5 @@ const CONFIG = {
 
     // ▼使用するAIモデルのバージョン
     // 例: "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp" など
-    AI_MODEL: "gemini-2.5-flash"
+    AI_MODEL: "gemini-2.5-flash-lite"
 };

@@ -342,23 +342,43 @@ function renderAll(set){
   els.quizArea.innerHTML = "";
   const font = els.font.value;
   set.forEach((q, i) => {
-    // ★修正: ここに 'question-card' クラスを復活させました！
+    // ★カード生成 (question-card クラス復活)
     const card = document.createElement("div");
     card.className = `bg-white p-4 rounded shadow question-card ${font}`;
     card.dataset.id = q.id;
     
+    // ヘッダー: 「問X [ID]」+「バッジ」+「削除ボタン」
     const head = document.createElement("div");
     head.className = "flex justify-between items-center mb-2 pb-2 border-b";
-    head.innerHTML = `<div><span class="font-bold text-blue-600">問${i+1}</span> <span class="text-xs text-gray-400">[${q.id}]</span></div>`;
+    
+    const titleDiv = document.createElement("div");
+    titleDiv.innerHTML = `<span class="font-bold text-blue-600">問${i+1}</span> <span class="text-xs text-gray-400">[${q.id}]</span>`;
+    
+    // 右側: バッジと削除ボタン
+    const rightDiv = document.createElement("div");
+    rightDiv.className = "flex items-center gap-2";
+    
+    // ★正答数バッジ (復活)
+    const badge = document.createElement("span");
+    badge.className = "stats-badge text-xs font-bold px-2 py-0.5 rounded text-white";
+    updateStatsBadge(badge, q.id);
+    
     const delBtn = document.createElement("button");
-    delBtn.className = "text-red-400 text-xs"; delBtn.textContent = "削除";
+    delBtn.className = "text-red-400 text-xs";
+    delBtn.textContent = "削除";
     delBtn.onclick = () => {
         if(!confirm("削除しますか？")) return;
         const d=loadDeleted(); if(!d.includes(q.id)){ d.push(q.id); saveDeleted(d); }
         currentSet=currentSet.filter(c=>c.id!==q.id); card.remove();
         if(answeredCount===currentSet.length) showResult();
     };
-    head.appendChild(delBtn); card.appendChild(head);
+    
+    rightDiv.appendChild(badge);
+    rightDiv.appendChild(delBtn);
+    
+    head.appendChild(titleDiv);
+    head.appendChild(rightDiv);
+    card.appendChild(head);
 
     const qDiv = document.createElement("div"); qDiv.className = "mb-4"; qDiv.innerHTML = q.question;
     card.appendChild(qDiv);
@@ -454,29 +474,15 @@ function renderAll(set){
     tabContainer.appendChild(contentArea);
     card.appendChild(tabContainer);
 
-    // 選択肢 (★修正: レイアウトを左寄せ、自然な配置に)
+    // 選択肢 (左寄せ・自然な配置)
     const opts = document.createElement("div");
     opts.className = "options-container space-y-2";
     Object.keys(q.options).forEach(lbl => {
         const row = document.createElement("div");
         row.className = "option border p-3 rounded flex justify-start items-start gap-2";
+        row.dataset.label = lbl; // 正誤判定に必須
         row.innerHTML = `<span class="font-bold text-blue-600 whitespace-nowrap pt-0.5">${lbl.toUpperCase()}.</span><span>${q.options[lbl]}</span><span class="feedback-icon"></span>`;
-        row.onclick = () => {
-            if(opts.classList.contains("answered")) return;
-            opts.classList.add("answered"); answeredCount++;
-            if(lbl===q.answer) { row.classList.add("correct"); playDoReMi(); }
-            else row.classList.add("incorrect");
-            Array.from(opts.children).forEach(c => {
-                 if(c.textContent.includes(q.options[q.answer])) c.classList.add("correct");
-                 c.classList.add("answered");
-            });
-            const st = loadStats();
-            st[q.id] = st[q.id] || {correct:0, total:0}; st[q.id].total++;
-            if(lbl===q.answer) st[q.id].correct++;
-            saveStats(st);
-            exp.classList.remove("hidden");
-            if(answeredCount===currentSet.length) showResult();
-        };
+        row.onclick = () => onOptionClick(row, q, card);
         opts.appendChild(row);
     });
     card.appendChild(opts);
@@ -490,17 +496,62 @@ function renderAll(set){
   });
 }
 
+// ★修正: ステータスバッジ更新処理を追加
+function updateStatsBadge(badge, qid) {
+    const st = statsCache[qid] || { correct: 0, total: 0 };
+    const rate = st.total > 0 ? (st.correct / st.total) * 100 : -1;
+    badge.textContent = `${st.correct}/${st.total}`;
+    badge.classList.remove("bg-gray-400", "bg-red-500", "bg-yellow-500", "bg-green-500");
+    if (rate === -1) badge.classList.add("bg-gray-400"); 
+    else if (rate < 50) badge.classList.add("bg-red-500");
+    else if (rate < 80) badge.classList.add("bg-yellow-500");
+    else badge.classList.add("bg-green-500");
+}
+
+// ★修正: クリック処理を独立関数にしてバッジ更新を組み込み
+function onOptionClick(row, q, card) {
+    const opts = card.querySelector(".options-container");
+    if(opts.classList.contains("answered")) return;
+    opts.classList.add("answered");
+    answeredCount++;
+    
+    const lbl = row.dataset.label;
+    if(lbl === q.answer) { row.classList.add("correct"); playDoReMi(); }
+    else row.classList.add("incorrect");
+    
+    Array.from(opts.children).forEach(c => {
+        if(c.dataset.label === q.answer) c.classList.add("correct");
+        c.classList.add("answered");
+    });
+    
+    // 統計更新
+    const st = loadStats();
+    st[q.id] = st[q.id] || {correct:0, total:0}; st[q.id].total++;
+    if(lbl === q.answer) st[q.id].correct++;
+    saveStats(st);
+    statsCache = st;
+    
+    // バッジ更新
+    updateStatsBadge(card.querySelector(".stats-badge"), q.id);
+    
+    // 解説表示
+    card.querySelector(".explanation").classList.remove("hidden");
+    
+    if(answeredCount === currentSet.length) showResult();
+}
+
 function showResult() {
     let ok = 0; lastWrongIds = [];
     document.querySelectorAll('.question-card').forEach(c => {
-        if(!c.querySelector('.incorrect')) ok++; else lastWrongIds.push(c.dataset.id);
+        // 不正解クラスを持つ要素があれば間違えたとみなす
+        if(!c.querySelector('.option.incorrect')) ok++; 
+        else lastWrongIds.push(c.dataset.id);
     });
-    // ★修正: 正答率の計算と表示を復活
+    
     const total = currentSet.length;
     const rate = total > 0 ? Math.round((ok/total)*100) : 0;
     els.score.innerHTML = `${ok} / ${total} 正解 <span class="text-xl text-gray-500">(${rate}%)</span>`;
     
-    // ★修正: リトライボタンの表示ロジックも、lastWrongIdsが正しく取れるようになったので直ります
     els.retryWrong.classList.toggle('hidden', lastWrongIds.length===0);
     els.resultModal.classList.remove('hidden');
 }

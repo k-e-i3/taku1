@@ -3,23 +3,21 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>択一問題システム (config分離版)</title>
+<title>択一問題システム (設定保持＆CSV編集強化)</title>
 <!-- 設定ファイルの読み込み -->
 <script src="config.js"></script>
-<!-- ライブラリの読み込み -->
+<!-- ライブラリ -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   body { font-family: "Noto Sans JP", "Inter", sans-serif; }
-  /* クリック時のアニメーションなど */
   .option { transition: background-color .2s, border-color .2s; cursor: pointer; }
   .option:not(.answered):hover { background-color: #f0f4ff; border-color: #a3bffa; }
   .correct { background-color: #e6fffa; border-color: #38a169; color: #2f855a; font-weight: 600; }
   .incorrect { background-color: #fff5f5; border-color: #e53e3e; color: #c53030; }
   .answered { cursor: default; }
   
-  /* 解説・AIエリア等 */
   .explanation, .hint, .memo-area, .ai-area { display:none; margin-top: 0.75rem; padding: 0.75rem; border-left-width: 4px; border-radius: 0.25rem; }
   .explanation { background-color: #f7fafc; border-color: #4a5568; color: #2d3748; }
   .hint { background-color: #fffaf0; border-color: #f6e05e; color: #975a16; }
@@ -33,7 +31,6 @@
   #resultModal.hidden { display: none; }
   #deletedModal.hidden { display: none; }
   
-  /* CSVエディタ: 自動折り返し有効 */
   .csv-editor { 
       font-family: monospace; 
       white-space: pre-wrap; 
@@ -51,21 +48,26 @@
       <div class="flex flex-wrap items-center justify-end gap-2 mb-2">
         <select id="csvSelect" class="border-gray-300 rounded-md shadow-sm text-sm p-2 flex-grow min-w-[150px]" title="問題セットを選択"></select>
         
-        <!-- 文字サイズ選択 -->
+        <!-- 文字サイズ -->
         <select id="fontSizeSelect" class="border-gray-300 rounded-md shadow-sm text-sm p-2" title="文字サイズ">
             <option value="text-sm">文字: 小</option>
             <option value="text-base" selected>文字: 中</option>
             <option value="text-lg">文字: 大</option>
         </select>
 
+        <!-- 出題数変更 -->
         <select id="numSelect" class="border-gray-300 rounded-md shadow-sm text-sm p-2 w-20" title="出題数を選択">
+          <option value="3">3問</option>
           <option value="5">5問</option>
+          <option value="7">7問</option>
           <option value="10" selected>10問</option>
+          <option value="15">15問</option>
           <option value="20">20問</option>
-          <option value="30">30問</option>
+          <option value="28">28問</option>
         </select>
         
-        <button id="loadBtn" class="bg-blue-600 text-white font-bold py-2 px-3 rounded-lg text-sm hover:bg-blue-700 transition-colors">再読込</button>
+        <!-- このボタンは「現在の状態（エディタ含む）」で再出題するだけ -->
+        <button id="loadBtn" class="bg-blue-600 text-white font-bold py-2 px-3 rounded-lg text-sm hover:bg-blue-700 transition-colors">開始 / 再読込</button>
       </div>
 
       <!-- CSVエディタ -->
@@ -75,9 +77,13 @@
                 <span>📄 CSVデータ編集</span>
             </summary>
             <div class="mt-2">
-                <textarea id="rawCsvArea" class="w-full h-48 border border-gray-300 rounded p-2 text-xs csv-editor bg-white focus:ring-2 focus:ring-blue-500" placeholder="ファイル読み込みボタンを押すとここにデータが表示されます..."></textarea>
+                <textarea id="rawCsvArea" class="w-full h-48 border border-gray-300 rounded p-2 text-xs csv-editor bg-white focus:ring-2 focus:ring-blue-500" placeholder="ここにCSVデータが表示されます..."></textarea>
                 <div class="flex gap-2 mt-2 justify-end items-center">
-                    <span id="editModeIndicator" class="text-xs font-bold text-red-500 hidden mr-auto">※手動編集モード中（再読込で解除）</span>
+                    <span id="editModeIndicator" class="text-xs font-bold text-red-500 hidden mr-auto">※手動収集中（上の再読込ボタンはこの内容を使います）</span>
+                    
+                    <!-- オリジナル読込ボタンを追加 -->
+                    <button id="resetRawBtn" class="bg-gray-200 text-gray-700 px-3 py-1 rounded text-xs font-bold hover:bg-gray-300 border border-gray-300">オリジナルを読込</button>
+                    
                     <button id="copyRawBtn" class="bg-gray-500 text-white px-3 py-1 rounded text-xs font-bold hover:bg-gray-600">コピー</button>
                     <button id="runFromRawBtn" class="bg-teal-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-teal-700 shadow">この内容で実行</button>
                 </div>
@@ -179,17 +185,19 @@ if (typeof CONFIG === 'undefined') {
     alert("エラー: config.js が見つかりません。\nAPIキーを設定した config.js を index.html と同じ場所に置いてください。");
 }
 
-/* ---------------- 設定 ---------------- */
+/* ---------------- 設定定数 ---------------- */
 const csvFilesFallback = ["knowledge.csv", "basic.csv"]; 
 const STORAGE_KEY = "rccmDrillStats_v4_ID";
 const DELETED_KEY = "rccmDrillDeleted_v1";
 const MEMO_KEY = "rccmDrillMemos_v1";
+const SETTINGS_KEY = "rccmDrillSettings_v1"; // UI設定保存用
 
 /* ---------------- DOM要素 ---------------- */
 const csvSelect = document.getElementById("csvSelect");
 const loadBtn = document.getElementById("loadBtn");
 const rawCsvArea = document.getElementById("rawCsvArea");
 const runFromRawBtn = document.getElementById("runFromRawBtn");
+const resetRawBtn = document.getElementById("resetRawBtn");
 const copyRawBtn = document.getElementById("copyRawBtn");
 const editModeIndicator = document.getElementById("editModeIndicator");
 const fontSizeSelect = document.getElementById("fontSizeSelect");
@@ -229,6 +237,7 @@ let isManualMode = false;
 
 /* ---- 初期化処理 ---- */
 (async function init() {
+  // ファイル一覧取得
   let list = [];
   try {
     const r = await fetch("index.json");
@@ -240,8 +249,22 @@ let isManualMode = false;
     opt.value = f; opt.textContent = f;
     csvSelect.appendChild(opt);
   });
-  fontSizeSelect.addEventListener("change", () => renderAll(currentSet));
   
+  // UI設定の復元（チェックボックス、問数など）
+  loadUISettings();
+
+  // イベントリスナー登録（設定保存用）
+  [csvSelect, fontSizeSelect, numSelect, minCorrectInput, minRateInput, soundToggle].forEach(el => {
+      el.addEventListener('change', saveUISettings);
+  });
+  document.querySelectorAll('.genre-cb').forEach(el => {
+      el.addEventListener('change', saveUISettings);
+  });
+
+  // フォントサイズ即時反映
+  fontSizeSelect.addEventListener("change", () => renderAll(currentSet));
+
+  // キーボードショートカット
   document.addEventListener('keydown', (e) => {
     if (resultModal.classList.contains('hidden')) {
       const key = e.key;
@@ -257,7 +280,47 @@ let isManualMode = false;
       if (e.key === 'Enter') closeModalBtn.click();
     }
   });
+
+  // テキストエリアの変更監視（変更されたらマニュアルモードON）
+  rawCsvArea.addEventListener('input', () => {
+      isManualMode = true;
+      editModeIndicator.classList.remove('hidden');
+  });
+
 })();
+
+/* ---- UI設定の保存と復元 ---- */
+function saveUISettings() {
+    const settings = {
+        csv: csvSelect.value,
+        fontSize: fontSizeSelect.value,
+        num: numSelect.value,
+        minCorrect: minCorrectInput.value,
+        minRate: minRateInput.value,
+        sound: soundToggle.checked,
+        genres: Array.from(document.querySelectorAll('.genre-cb')).map(cb => ({val: cb.value, checked: cb.checked}))
+    };
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+
+function loadUISettings() {
+    try {
+        const s = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+        if (!s) return;
+        if (s.csv) csvSelect.value = s.csv;
+        if (s.fontSize) fontSizeSelect.value = s.fontSize;
+        if (s.num) numSelect.value = s.num;
+        if (s.minCorrect) minCorrectInput.value = s.minCorrect;
+        if (s.minRate) minRateInput.value = s.minRate;
+        if (s.sound !== undefined) soundToggle.checked = s.sound;
+        if (s.genres) {
+            s.genres.forEach(g => {
+                const cb = document.querySelector(`.genre-cb[value="${g.val}"]`);
+                if (cb) cb.checked = g.checked;
+            });
+        }
+    } catch(e) { console.error("設定読み込みエラー", e); }
+}
 
 /* ---- WebAudio APIによる効果音 ---- */
 let audioCtx = null;
@@ -282,32 +345,21 @@ function playDoReMi(){
   playTone(659.25, 0.28); 
 }
 
-/* ---- テキスト整形ヘルパー（改行の処理強化） ---- */
+/* ---- テキスト整形 ---- */
 function cleanText(str) {
     if (!str) return "";
     let s = str.toString().trim();
-    // 1. "邺" を <br> に
     s = s.replaceAll("邺", "<br>");
-    // 2. 普通の改行コード (\n) も <br> に
     s = s.replace(/\n/g, "<br>");
     return s;
 }
 
-/* ---- CSVデータから問題オブジェクトを生成 ---- */
+/* ---- CSVデータ解析 ---- */
 function buildQuestionsFromCSV(text){
   const parsed = Papa.parse(text, { header:true, skipEmptyLines:true });
-  
   return parsed.data.map((row) => {
     const id = row["ID"] || "";
     const genre = row["ジャンル"] || "未分類";
-    
-    // ここではあえて cleanText をかけず、描画直前でかける設計もあるが
-    // 検索やコピーの都合上、データ保持時点では「邺」や「\n」を保持し
-    // 描画時に変換するのがベスト。
-    // しかし、currentSetを作る時点でオブジェクトにするので、
-    // ここで変換してしまうと「コピー」時に <br> が混ざる。
-    // 今回の仕様：「コピー」は <br> -> 邺 に戻す。
-    // なので、ここで <br> に変換してしまってOKです。
     
     const qText = cleanText(row["問題"]);
     const correctText = cleanText(row["正解"]);
@@ -343,7 +395,7 @@ function buildQuestionsFromCSV(text){
   }).filter(Boolean);
 }
 
-/* ---- 学習ログ・メモの操作 ---- */
+/* ---- ストレージ管理 ---- */
 function loadStats(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }catch(e){return{}} }
 function saveStats(obj){ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }
 function loadDeleted(){ try{ return JSON.parse(localStorage.getItem(DELETED_KEY) || "[]"); }catch(e){ return []; } }
@@ -357,8 +409,8 @@ function shouldExclude(q, stats, minCorrect, minRate){
   return (rec.correct >= minCorrect) && (rate >= minRate);
 }
 
-/* ---- 問題の読み込みと表示 ---- */
-async function loadAndRender(isRetry = false, onlyWrong = false, useTextarea = false) {
+/* ---- メイン：問題読み込みと描画 ---- */
+async function loadAndRender(isRetry = false, onlyWrong = false, forceManual = false, forceFetch = false) {
   notice.textContent = "";
   quizArea.innerHTML = "";
   answeredCount = 0;
@@ -366,13 +418,16 @@ async function loadAndRender(isRetry = false, onlyWrong = false, useTextarea = f
   statsCache = loadStats();
   memosCache = loadMemos();
 
-  if (useTextarea) {
+  // モード制御
+  if (forceFetch) {
+      isManualMode = false;
+      editModeIndicator.classList.add('hidden');
+  } else if (forceManual) {
       isManualMode = true;
       editModeIndicator.classList.remove('hidden');
-  } else if (!isRetry) {
-     // 再読込ボタン等から来た場合は通常モード
   }
 
+  // リトライ処理
   if (isRetry) {
       if (onlyWrong) {
           const wrongSet = currentSet.filter(q => lastWrongIds.includes(q.id));
@@ -386,6 +441,7 @@ async function loadAndRender(isRetry = false, onlyWrong = false, useTextarea = f
       return;
   }
 
+  // フィルタリング
   const selectedGenres = Array.from(document.querySelectorAll('.genre-cb:checked')).map(cb => cb.value);
   if (selectedGenres.length === 0) {
       notice.textContent = "ジャンルを1つ以上選択してください。";
@@ -400,29 +456,40 @@ async function loadAndRender(isRetry = false, onlyWrong = false, useTextarea = f
 
   try {
     let text = "";
-    if (isManualMode) {
+    // マニュアルモード（テキストエリア優先）か、通常ロード（ファイル優先）か
+    if (isManualMode && !forceFetch) {
         text = rawCsvArea.value;
         if (!text.trim()) throw new Error("CSVエディタが空です。");
     } else {
+        // ファイルから読み込み（初回 or オリジナル読込ボタン）
         const r = await fetch(filename);
         if (!r.ok) throw new Error(`CSVファイル「${filename}」の取得に失敗しました。`);
         text = await r.text();
         rawCsvArea.value = text;
-        editModeIndicator.classList.add('hidden');
+        
+        // 通常ロード時はモードOFF
+        if(forceFetch) {
+            isManualMode = false;
+            editModeIndicator.classList.add('hidden');
+        }
     }
 
     allQuestions = buildQuestionsFromCSV(text);
     const genreFiltered = allQuestions.filter(q => selectedGenres.includes(q.genre));
     const filteredAll = genreFiltered.filter(q => !deletedIds.has(q.id));
+    
     let candidates = filteredAll.filter(q => !shouldExclude(q, statsCache, minCorrect, minRate));
+    // 問題不足時の補充ロジック
     if (candidates.length < num && filteredAll.length >= num) {
       notice.textContent = `苦手問題が${candidates.length}問しかありませんでした。学習済みの問題から補充して出題します。`;
       const excluded = filteredAll.filter(q => shouldExclude(q, statsCache, minCorrect, minRate));
       shuffleArray(excluded);
       candidates.push(...excluded.slice(0, num - candidates.length));
     }
+    
     shuffleArray(candidates);
     currentSet = candidates.slice(0, Math.min(num, filteredAll.length));
+    
     if (currentSet.length === 0) {
         notice.textContent = "出題できる問題がありません。";
         return;
@@ -434,7 +501,7 @@ async function loadAndRender(isRetry = false, onlyWrong = false, useTextarea = f
   }
 }
 
-/* ---- カード描画 ---- */
+/* ---- 描画 ---- */
 function renderAll(set){
   quizArea.innerHTML = "";
   const fontClass = fontSizeSelect.value || "text-base";
@@ -444,7 +511,6 @@ function renderAll(set){
     card.className = `bg-white p-4 sm:p-6 rounded-lg shadow-md question-card ${fontClass}`;
     card.dataset.id = q.id;
 
-    // ヘッダー (スマホ対応コンパクト)
     const metaHeader = document.createElement("div");
     metaHeader.className = "flex flex-wrap items-center gap-2 mb-2 pb-2 border-b border-gray-100";
     const titleGroup = document.createElement("div");
@@ -473,13 +539,11 @@ function renderAll(set){
     metaHeader.appendChild(controlGroup);
     card.appendChild(metaHeader);
 
-    // 問題文（HTMLタグ有効化）
     const qBody = document.createElement("div");
     qBody.className = "mb-4 font-medium leading-relaxed";
     qBody.innerHTML = q.question; 
     card.appendChild(qBody);
 
-    // ボタン群
     const btnGroup = document.createElement("div");
     btnGroup.className = "flex flex-wrap gap-2 mb-4";
     if (q.hint) {
@@ -545,7 +609,6 @@ function renderAll(set){
     btnGroup.appendChild(memoBtn); btnGroup.appendChild(aiBtn);
     card.appendChild(btnGroup); card.appendChild(memoEl); card.appendChild(aiEl);
 
-    // 選択肢
     const optsContainer = document.createElement("div");
     optsContainer.className = "options-container space-y-2";
     Object.keys(q.options).forEach(lbl => {
@@ -617,7 +680,6 @@ function showResult() {
     } else retryWrongBtn.classList.add('hidden');
     resultModal.classList.remove('hidden');
 }
-
 async function getAIAdvice(q, userInput) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${CONFIG.AI_MODEL}:generateContent?key=${CONFIG.API_KEY}`;
     const prompt = `あなたは測量士試験のプロ講師です。\n【問題】${q.question}\n【正解】${q.correctText}\n【解説】${q.explanation}\n【質問】${userInput}\n簡潔に回答してください。`;
@@ -628,8 +690,24 @@ async function getAIAdvice(q, userInput) {
 }
 function shuffleArray(a){ for (let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
 
-loadBtn.addEventListener("click", () => { isManualMode = false; loadAndRender(false, false, false); });
+/* ---- ボタンイベント (ロジック修正済み) ---- */
+// 再読込ボタン：手動モードならそのまま、そうでなければサーバーから（でも既存のisManualModeフラグに従う）
+loadBtn.addEventListener("click", () => {
+    // ここで isManualMode を強制的に false にしてはいけない
+    // そのまま loadAndRender を呼ぶことで、isManualMode が true ならテキストエリアの内容が使われる
+    loadAndRender(false, false); 
+});
+
+// この内容で実行：強制的にマニュアルモードON
 runFromRawBtn.addEventListener("click", () => loadAndRender(false, false, true));
+
+// オリジナルを読込：強制的にマニュアルモードOFFでサーバーから取得
+resetRawBtn.addEventListener("click", () => {
+    if(confirm("手動編集した内容を破棄して、サーバーのファイルを読み込み直しますか？")) {
+        loadAndRender(false, false, false, true); // forceFetch = true
+    }
+});
+
 copyRawBtn.addEventListener("click", () => { navigator.clipboard.writeText(rawCsvArea.value).then(()=>alert("コピーしました")); });
 retryBtn.addEventListener("click", () => loadAndRender(true));
 newQuizBtn.addEventListener("click", () => loadAndRender(false));

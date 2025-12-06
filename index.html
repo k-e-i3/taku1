@@ -44,18 +44,15 @@
     
     <!-- コントロールパネル -->
     <section class="bg-white p-3 rounded-lg shadow-md mb-6">
-      <!-- 上段：主要操作 -->
       <div class="flex flex-wrap items-center justify-end gap-2 mb-2">
         <select id="csvSelect" class="border-gray-300 rounded-md shadow-sm text-sm p-2 flex-grow min-w-[150px]" title="問題セットを選択"></select>
         
-        <!-- 文字サイズ -->
         <select id="fontSizeSelect" class="border-gray-300 rounded-md shadow-sm text-sm p-2" title="文字サイズ">
             <option value="text-sm">文字: 小</option>
             <option value="text-base" selected>文字: 中</option>
             <option value="text-lg">文字: 大</option>
         </select>
 
-        <!-- 出題数変更 -->
         <select id="numSelect" class="border-gray-300 rounded-md shadow-sm text-sm p-2 w-20" title="出題数を選択">
           <option value="3">3問</option>
           <option value="5">5問</option>
@@ -66,7 +63,6 @@
           <option value="28">28問</option>
         </select>
         
-        <!-- このボタンは「現在の状態（エディタ含む）」で再出題するだけ -->
         <button id="loadBtn" class="bg-blue-600 text-white font-bold py-2 px-3 rounded-lg text-sm hover:bg-blue-700 transition-colors">開始 / 再読込</button>
       </div>
 
@@ -80,10 +76,7 @@
                 <textarea id="rawCsvArea" class="w-full h-48 border border-gray-300 rounded p-2 text-xs csv-editor bg-white focus:ring-2 focus:ring-blue-500" placeholder="ここにCSVデータが表示されます..."></textarea>
                 <div class="flex gap-2 mt-2 justify-end items-center">
                     <span id="editModeIndicator" class="text-xs font-bold text-red-500 hidden mr-auto">※手動収集中（上の再読込ボタンはこの内容を使います）</span>
-                    
-                    <!-- オリジナル読込ボタンを追加 -->
                     <button id="resetRawBtn" class="bg-gray-200 text-gray-700 px-3 py-1 rounded text-xs font-bold hover:bg-gray-300 border border-gray-300">オリジナルを読込</button>
-                    
                     <button id="copyRawBtn" class="bg-gray-500 text-white px-3 py-1 rounded text-xs font-bold hover:bg-gray-600">コピー</button>
                     <button id="runFromRawBtn" class="bg-teal-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-teal-700 shadow">この内容で実行</button>
                 </div>
@@ -190,7 +183,7 @@ const csvFilesFallback = ["knowledge.csv", "basic.csv"];
 const STORAGE_KEY = "rccmDrillStats_v4_ID";
 const DELETED_KEY = "rccmDrillDeleted_v1";
 const MEMO_KEY = "rccmDrillMemos_v1";
-const SETTINGS_KEY = "rccmDrillSettings_v1"; // UI設定保存用
+const SETTINGS_KEY = "rccmDrillSettings_v1"; 
 
 /* ---------------- DOM要素 ---------------- */
 const csvSelect = document.getElementById("csvSelect");
@@ -237,7 +230,6 @@ let isManualMode = false;
 
 /* ---- 初期化処理 ---- */
 (async function init() {
-  // ファイル一覧取得
   let list = [];
   try {
     const r = await fetch("index.json");
@@ -250,10 +242,8 @@ let isManualMode = false;
     csvSelect.appendChild(opt);
   });
   
-  // UI設定の復元（チェックボックス、問数など）
   loadUISettings();
 
-  // イベントリスナー登録（設定保存用）
   [csvSelect, fontSizeSelect, numSelect, minCorrectInput, minRateInput, soundToggle].forEach(el => {
       el.addEventListener('change', saveUISettings);
   });
@@ -261,10 +251,8 @@ let isManualMode = false;
       el.addEventListener('change', saveUISettings);
   });
 
-  // フォントサイズ即時反映
   fontSizeSelect.addEventListener("change", () => renderAll(currentSet));
 
-  // キーボードショートカット
   document.addEventListener('keydown', (e) => {
     if (resultModal.classList.contains('hidden')) {
       const key = e.key;
@@ -281,7 +269,6 @@ let isManualMode = false;
     }
   });
 
-  // テキストエリアの変更監視（変更されたらマニュアルモードON）
   rawCsvArea.addEventListener('input', () => {
       isManualMode = true;
       editModeIndicator.classList.remove('hidden');
@@ -289,7 +276,6 @@ let isManualMode = false;
 
 })();
 
-/* ---- UI設定の保存と復元 ---- */
 function saveUISettings() {
     const settings = {
         csv: csvSelect.value,
@@ -302,7 +288,6 @@ function saveUISettings() {
     };
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
-
 function loadUISettings() {
     try {
         const s = JSON.parse(localStorage.getItem(SETTINGS_KEY));
@@ -322,7 +307,7 @@ function loadUISettings() {
     } catch(e) { console.error("設定読み込みエラー", e); }
 }
 
-/* ---- WebAudio APIによる効果音 ---- */
+/* ---- WebAudio API ---- */
 let audioCtx = null;
 function ensureAudioCtx(){ if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
 function playTone(freq, startOffset, duration=0.16){
@@ -345,7 +330,6 @@ function playDoReMi(){
   playTone(659.25, 0.28); 
 }
 
-/* ---- テキスト整形 ---- */
 function cleanText(str) {
     if (!str) return "";
     let s = str.toString().trim();
@@ -354,7 +338,6 @@ function cleanText(str) {
     return s;
 }
 
-/* ---- CSVデータ解析 ---- */
 function buildQuestionsFromCSV(text){
   const parsed = Papa.parse(text, { header:true, skipEmptyLines:true });
   return parsed.data.map((row) => {
@@ -395,7 +378,6 @@ function buildQuestionsFromCSV(text){
   }).filter(Boolean);
 }
 
-/* ---- ストレージ管理 ---- */
 function loadStats(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }catch(e){return{}} }
 function saveStats(obj){ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }
 function loadDeleted(){ try{ return JSON.parse(localStorage.getItem(DELETED_KEY) || "[]"); }catch(e){ return []; } }
@@ -409,7 +391,6 @@ function shouldExclude(q, stats, minCorrect, minRate){
   return (rec.correct >= minCorrect) && (rate >= minRate);
 }
 
-/* ---- メイン：問題読み込みと描画 ---- */
 async function loadAndRender(isRetry = false, onlyWrong = false, forceManual = false, forceFetch = false) {
   notice.textContent = "";
   quizArea.innerHTML = "";
@@ -418,7 +399,6 @@ async function loadAndRender(isRetry = false, onlyWrong = false, forceManual = f
   statsCache = loadStats();
   memosCache = loadMemos();
 
-  // モード制御
   if (forceFetch) {
       isManualMode = false;
       editModeIndicator.classList.add('hidden');
@@ -427,7 +407,6 @@ async function loadAndRender(isRetry = false, onlyWrong = false, forceManual = f
       editModeIndicator.classList.remove('hidden');
   }
 
-  // リトライ処理
   if (isRetry) {
       if (onlyWrong) {
           const wrongSet = currentSet.filter(q => lastWrongIds.includes(q.id));
@@ -441,7 +420,6 @@ async function loadAndRender(isRetry = false, onlyWrong = false, forceManual = f
       return;
   }
 
-  // フィルタリング
   const selectedGenres = Array.from(document.querySelectorAll('.genre-cb:checked')).map(cb => cb.value);
   if (selectedGenres.length === 0) {
       notice.textContent = "ジャンルを1つ以上選択してください。";
@@ -456,18 +434,15 @@ async function loadAndRender(isRetry = false, onlyWrong = false, forceManual = f
 
   try {
     let text = "";
-    // マニュアルモード（テキストエリア優先）か、通常ロード（ファイル優先）か
     if (isManualMode && !forceFetch) {
         text = rawCsvArea.value;
         if (!text.trim()) throw new Error("CSVエディタが空です。");
     } else {
-        // ファイルから読み込み（初回 or オリジナル読込ボタン）
         const r = await fetch(filename);
         if (!r.ok) throw new Error(`CSVファイル「${filename}」の取得に失敗しました。`);
         text = await r.text();
         rawCsvArea.value = text;
         
-        // 通常ロード時はモードOFF
         if(forceFetch) {
             isManualMode = false;
             editModeIndicator.classList.add('hidden');
@@ -479,7 +454,6 @@ async function loadAndRender(isRetry = false, onlyWrong = false, forceManual = f
     const filteredAll = genreFiltered.filter(q => !deletedIds.has(q.id));
     
     let candidates = filteredAll.filter(q => !shouldExclude(q, statsCache, minCorrect, minRate));
-    // 問題不足時の補充ロジック
     if (candidates.length < num && filteredAll.length >= num) {
       notice.textContent = `苦手問題が${candidates.length}問しかありませんでした。学習済みの問題から補充して出題します。`;
       const excluded = filteredAll.filter(q => shouldExclude(q, statsCache, minCorrect, minRate));
@@ -501,7 +475,6 @@ async function loadAndRender(isRetry = false, onlyWrong = false, forceManual = f
   }
 }
 
-/* ---- 描画 ---- */
 function renderAll(set){
   quizArea.innerHTML = "";
   const fontClass = fontSizeSelect.value || "text-base";
@@ -602,8 +575,9 @@ function renderAll(set){
         try {
             const advice = await getAIAdvice(q, userQ);
             aiResponseDiv.innerHTML = `<strong>【AI回答】</strong><br>${advice.replace(/\n/g, '<br>')}`;
-        } catch(e) { aiResponseDiv.textContent = "エラー: " + e.message; }
-        finally { aiSubmitBtn.disabled = false; aiSubmitBtn.textContent = "送信"; }
+        } catch(e) { 
+            aiResponseDiv.textContent = "エラー: " + e.message; 
+        } finally { aiSubmitBtn.disabled = false; aiSubmitBtn.textContent = "送信"; }
     });
     aiBtn.addEventListener("click", () => { aiEl.style.display = aiEl.style.display === "block" ? "none" : "block"; });
     btnGroup.appendChild(memoBtn); btnGroup.appendChild(aiBtn);
@@ -680,31 +654,40 @@ function showResult() {
     } else retryWrongBtn.classList.add('hidden');
     resultModal.classList.remove('hidden');
 }
+
+/* ---- AI API (詳細エラー表示対応) ---- */
 async function getAIAdvice(q, userInput) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${CONFIG.AI_MODEL}:generateContent?key=${CONFIG.API_KEY}`;
     const prompt = `あなたは測量士試験のプロ講師です。\n【問題】${q.question}\n【正解】${q.correctText}\n【解説】${q.explanation}\n【質問】${userInput}\n簡潔に回答してください。`;
-    const response = await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
-    if (!response.ok) throw new Error("APIエラー");
-    const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || "エラー";
+    
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            let msg = `エラー (${response.status})`;
+            if(response.status === 429) msg += ": 使いすぎ(制限超過)です。";
+            else if(response.status === 404) msg += ": モデル名の間違いか、まだ無効です。";
+            else msg += ": " + errorText;
+            throw new Error(msg);
+        }
+        const data = await response.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || "回答不能";
+    } catch(e) {
+        throw e;
+    }
 }
+
 function shuffleArray(a){ for (let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
 
-/* ---- ボタンイベント (ロジック修正済み) ---- */
-// 再読込ボタン：手動モードならそのまま、そうでなければサーバーから（でも既存のisManualModeフラグに従う）
-loadBtn.addEventListener("click", () => {
-    // ここで isManualMode を強制的に false にしてはいけない
-    // そのまま loadAndRender を呼ぶことで、isManualMode が true ならテキストエリアの内容が使われる
-    loadAndRender(false, false); 
-});
-
-// この内容で実行：強制的にマニュアルモードON
+loadBtn.addEventListener("click", () => { loadAndRender(false, false); });
 runFromRawBtn.addEventListener("click", () => loadAndRender(false, false, true));
-
-// オリジナルを読込：強制的にマニュアルモードOFFでサーバーから取得
 resetRawBtn.addEventListener("click", () => {
     if(confirm("手動編集した内容を破棄して、サーバーのファイルを読み込み直しますか？")) {
-        loadAndRender(false, false, false, true); // forceFetch = true
+        loadAndRender(false, false, false, true); 
     }
 });
 

@@ -33,7 +33,7 @@
     
     <!-- APIキー設定ボタン（右上） -->
     <div class="text-right mb-2">
-        <button id="openApiKeyBtn" class="text-xs text-gray-500 underline hover:text-gray-800">?? APIキー設定</button>
+        <button id="openApiKeyBtn" class="text-xs text-gray-500 underline hover:text-gray-800">🔑 APIキー設定</button>
     </div>
 
     <!-- コントロールパネル -->
@@ -61,7 +61,7 @@
       <div class="mt-2 border-t pt-2">
         <details> 
             <summary class="cursor-pointer text-xs font-bold text-gray-600 bg-gray-50 p-2 rounded hover:bg-gray-100 flex justify-between items-center">
-                <span>?? CSVデータ編集</span>
+                <span>📄 CSVデータ編集</span>
             </summary>
             <div class="mt-2">
                 <textarea id="rawCsvArea" class="w-full h-48 border border-gray-300 rounded p-2 text-xs csv-editor bg-white" placeholder="CSVデータ..."></textarea>
@@ -165,7 +165,7 @@ const DELETED_KEY = "rccmDrillDeleted_v1";
 const MEMO_KEY = "rccmDrillMemos_v1";
 const SETTINGS_KEY = "rccmDrillSettings_v1"; 
 const API_KEY_STORAGE = "rccmDrillApiKey_v1"; 
-const AI_MODEL = "gemini-2.5-flash-lite"; // モデル固定
+const AI_MODEL = "gemini-1.5-flash"; // モデル固定
 
 /* DOM要素 */
 const els = {
@@ -399,7 +399,7 @@ function renderAll(set){
     const tabHeader = document.createElement("div");
     tabHeader.className = "flex border-b bg-gray-50";
     const tabIds = ["hint", "memo", "ai"];
-    const tabLabels = ["?? ヒント", "?? メモ", "?? AI"];
+    const tabLabels = ["💡 ヒント", "📝 メモ", "🤖 AI"];
     const tabBtns = {};
     const contentDivs = {};
 

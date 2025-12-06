@@ -2,130 +2,62 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,'; color: #38a169; }
-  .incorrect .feedback-icon::after { contentinitial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>択一システム</title>
-<script src="https://: '×'; color: #e53e3e; }
-  
-  /* チャット用スタイルcdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min. */
-  .chat-bubble { max-width: 85%; padding: 8px 12px; border-js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
-<link href="radius: 12px; font-size: 0.9rem; line-height: 1.5https://fonts.googleapis.com/css2?family=Inter:wght@400;500; margin-bottom: 8px; word-wrap: break-word; }
-  .chat-user { background-color: #dbeafe; color: #1e40af; margin-left: auto; border-bottom-right-radius: 2;600;700&family=Noto+Sans+JP:wght@400;5px; }
-  .chat-ai { background-color: #f3f4f6; color: #100;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-  body { fontf2937; margin-right: auto; border-bottom-left-radius: 2px;-family: "Noto Sans JP", "Inter", sans-serif; }
-  .tab-btn { border-bottom: 2px solid transparent; transition: all 0.2s; color: #6b7 }
+  body { font-family: "Noto Sans JP", "Inter", sans-serif; }
   
+  /* タブUI */
+  .tab-btn { border-bottom: 2px solid transparent; transition: all 0.2s; color: #6b7280; }
+  .tab-btn.active { border-bottom-color: #3b82f6; color: #2563eb; font-weight: bold; background-color: #eff6ff; }
+  
+  /* 選択肢 */
+  .option { transition: background-color .2s, border-color .2s; cursor: pointer; }
+  .option:not(.answered):hover { background-color: #f0f4ff; border-color: #a3bffa; }
+  .correct { background-color: #e6fffa; border-color: #38a169; color: #2f855a; font-weight: 600; }
+  .incorrect { background-color: #fff5f5; border-color: #e53e3e; color: #c53030; }
+  .answered { cursor: default; }
+  
+  .feedback-icon { font-size: 1.25rem; font-weight: bold; }
+  .correct .feedback-icon::after { content: '〇'; color: #38a169; }
+  .incorrect .feedback-icon::after { content: '×'; color: #e53e3e; }
+  
+  /* チャット吹き出し */
+  .chat-container { display: flex; flex-direction: column; gap: 8px; padding: 8px; height: 300px; overflow-y: auto; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; }
+  .chat-bubble { max-width: 85%; padding: 8px 12px; border-radius: 12px; font-size: 0.9rem; line-height: 1.5; word-wrap: break-word; }
+  .chat-user { align-self: flex-end; background-color: #dbeafe; color: #1e40af; border-bottom-right-radius: 2px; }
+  .chat-ai { align-self: flex-start; background-color: #ffffff; border: 1px solid #e5e7eb; color: #374151; border-bottom-left-radius: 2px; }
+
   #resultModal.hidden, #deletedModal.hidden, #apiKeyModal.hidden { display: none; }
-  .280; }
-  .tab-btn.active { border-bottom-color: #3b8csv-editor { font-family: monospace; white-space: pre-wrap; word-break: break-2f6; color: #2563eb; font-weight: bold; background-color: #eff6ff; }
-  .option { transition: background-color .2s, border-color .2all; overflow-y: auto; }
+  .csv-editor { font-family: monospace; white-space: pre-wrap; word-break: break-all; overflow-y: auto; }
 </style>
 </head>
-<body class="bg-s; cursor: pointer; }
-  .option:not(.answered):hover { background-color: #fgray-100 text-gray-900">
+<body class="bg-gray-100 text-gray-900">
   <div class="container mx-auto p-3 sm:p-6 lg:p-8 max-w-4xl">
     
-    <div class="text-right mb0f4ff; border-color: #a3bffa; }
-  .correct { background-color: #e6fffa; border-color: #38a169; color: #2f-2">
-        <button id="openApiKeyBtn" class="text-xs text-gray-50855a; font-weight: 600; }
-  .incorrect { background-color:0 underline hover:text-gray-800">🔑 APIキー設定</button>
-    </div>
-
-    <!-- コントロールパネル -->
-    <section class="bg-white p-3 rounded-lg shadow-md #fff5f5; border-color: #e53e3e; color: #c53 mb-6">
-      <div class="flex flex-wrap items-center justify-end gap-2 mb030; }
-  .answered { cursor: default; }
-  .feedback-icon { font-size: 1.25rem; font-weight: bold; }
-  .correct .feedback-icon-2">
-        <select id="csvSelect" class="border-gray-300 rounded-md::after { content: '〇'; color: #38a169; }
-  .incorrect . shadow-sm text-sm p-2 flex-grow min-w-[120px]"></select>feedback-icon::after { content: '×'; color: #e53e3e; }
-  
-        <select id="fontSizeSelect" class="border-gray-300 rounded-md shadow-sm text-sm p-2">
-            <option value="text-sm">文字: 小</option>
-
-  /* チャット用スタイル */
-  .chat-bubble { padding: 8px 12px; border-            <option value="text-base" selected>文字: 中</option>
-            <option value="textradius: 12px; max-width: 85%; font-size: 0.9rem; line-height:-lg">文字: 大</option>
-        </select>
-        <select id="numSelect" class="border-gray-300 rounded-md shadow-sm text-sm p-2 w-20 1.5; margin-bottom: 8px; word-wrap: break-word; }
-  .chat-user">
-          <option value="3">3問</option>
-          <option value="5">5問 { background-color: #7c3aed; color: white; align-self: flex-end;</option>
-          <option value="7">7問</option>
-          <option value="10" selected>10問</option>
-          <option value="15">15問</option> margin-left: auto; border-bottom-right-radius: 2px; }
-  .chat-
-          <option value="20">20問</option>
-          <option value="28">ai { background-color: #f3f4f6; color: #1f2937; align28問</option>
-        </select>
-        <button id="loadBtn" class="bg-blue-600 text-white font-bold py-2 px-3 rounded-lg text-sm hover:bg-blue-700">開始 / 再読込</button>
-      </div>
-
-      <div class="mt-2 border-t pt-2">
-        <details> 
-            <summary class="-self: flex-start; margin-right: auto; border-bottom-left-radius: 2pxcursor-pointer text-xs font-bold text-gray-600 bg-gray-50 p-2 rounded hover:bg-gray-100 flex justify-between items-center">
-                <span>📄 CSV; border: 1px solid #e5e7eb; }
-  .chat-container { display: flex; flex-directionデータ編集</span>
-            </summary>
-            <div class="mt-2">
-                <textarea id="rawCsvArea" class="w-full h-48 border border-gray-300 rounded p-2 text-xs csv-editor bg-white" placeholder="CSVデータ..."></textarea>
-                <div class="flex gap-2 mt-2 justify-end items-center">
-                    <span id="editModeIndicator: column; height: 300px; overflow-y: auto; padding: 10px; background-color:" class="text-xs font-bold text-red-500 hidden mr-auto">※手動収集中</span>
-                    <button id="resetRawBtn" class="bg-gray-200 text- #ffffff; border: 1px solid #e5e7eb; border-radius: 0.375rem; }
-
-  #resultModal.hidden, #deletedModal.hidden, #apiKeyModal.hidden { display: none;gray-700 px-3 py-1 rounded text-xs font-bold border">オリジナル読込</button>
-                    <button id="copyRawBtn" class="bg-gray-500 text-white px-3 py-1 rounded text-xs font-bold">コピー</button>
-                    <button id="runFromRawBtn" class="bg-teal-600 text-white px-3 py-1 rounded text-xs font-bold shadow">実行</button>
-                </div>
-            </div>
-        </details>
-      </div>
-
-      <div id="genreFilter" class="mt-3 pt-2 border-t grid grid-cols-2 sm:grid-cols-4 gap-x-2 gap-y-2">
-        <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox }
-  .csv-editor { font-family: monospace; white-space: pre-wrap; word-" class="genre-cb h-4 w-4 mr-1" value="法規等" checked>break: break-all; overflow-y: auto; }
-</style>
-</head>
-<body法規等</label>
-        <label class="flex items-center text-xs sm:text-sm class="bg-gray-100 text-gray-900">
-  <div class="container mx-auto p-3 sm:p-6 lg:p-8 max-w-4xl">
- cursor-pointer"><input type="checkbox" class="genre-cb h-4 w-4 mr-1"    
     <div class="text-right mb-2">
-        <button id="openApiKeyBtn" class="text-xs text-gray-500 underline hover:text-gray-800">🔑 value="基準点測量" checked>基準点測量</label>
-        <label class="flex items APIキー設定</button>
+        <button id="openApiKeyBtn" class="text-xs text-gray-500 underline hover:text-gray-800">🔑 APIキー設定</button>
     </div>
 
     <!-- コントロールパネル -->
     <section class="bg-white p-3 rounded-lg shadow-md mb-6">
       <div class="flex flex-wrap items-center justify-end gap-2 mb-2">
-        <select id="csvSelect" class-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="genre-cb h-4 w-4 mr-1" value="地図・GIS" checked>地図・GIS</label>
-        <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="genre-cb h-4 w-4 mr-1" value="応用測量" checked>応用測量</label>
-      </div>
-
-      <div class="mt-2 pt-2 border-t">
-        <details>
-          <summary class="cursor-pointer text-xs text-gray-500">詳細設定・ログ管理</summary>
-          <div class="mt-2 grid grid-="border-gray-300 rounded-md shadow-sm text-sm p-2 flex-grow mincols-2 gap-2">
-            <div><label class="block text-xs text-gray-50-w-[120px]"></select>
+        <select id="csvSelect" class="border-gray-300 rounded-md shadow-sm text-sm p-2 flex-grow min-w-[120px]"></select>
         <select id="fontSizeSelect" class="border-gray-300 rounded-md shadow-sm text-sm p-2">
             <option value="text-sm">文字: 小</option>
             <option value="text-base" selected>文字: 中</option>
             <option value="text-lg">文字: 大</option>
-        </select0">除外: 最低正解数</label><input id="minCorrect" type="number" min>
+        </select>
         <select id="numSelect" class="border-gray-300 rounded-md shadow-sm text-sm p-2 w-20">
           <option value="3">3問</option>
           <option value="5">5問</option>
-          <option value="7">7問="1" value="3" class="mt-1 w-full border border-gray-300 rounded text-sm p-1" /></div>
-            <div><label class="block text-xs text-gray-</option>
+          <option value="7">7問</option>
           <option value="10" selected>10問</option>
-          <option500">除外: 最低正答率(%)</label><input id="minRate" type="number" min="0" max="100" value="80" class="mt-1 w-full border border-gray-300 rounded text-sm p-1" /></div>
-          </div>
-          <div class="mt-2 pt-2 border-t flex flex-wrap items-center gap-2">
-            <label class="flex items-center text-xs text-gray-600"><input id value="15">15問</option>
-          <option value="20">20問</="soundToggle" type="checkbox" class="mr-1" checked />音</label>
-            <divoption>
+          <option value="15">15問</option>
+          <option value="20">20問</option>
           <option value="28">28問</option>
         </select>
         <button id="loadBtn" class="bg-blue-600 text-white font-bold py-2 px-3 rounded-lg text-sm hover:bg-blue-700">開始 / 再読込</button>
@@ -139,190 +71,127 @@
             <div class="mt-2">
                 <textarea id="rawCsvArea" class="w-full h-48 border border-gray-300 rounded p-2 text-xs csv-editor bg-white" placeholder="CSVデータ..."></textarea>
                 <div class="flex gap-2 mt-2 justify-end items-center">
-                    <span id="editModeIndicator" class="text-xs font-bold text-red- class="flex-grow"></div>
-            <button id="showStats" class="bg-gray-20500 hidden mr-auto">※手動収集中</span>
+                    <span id="editModeIndicator" class="text-xs font-bold text-red-500 hidden mr-auto">※手動収集中</span>
                     <button id="resetRawBtn" class="bg-gray-200 text-gray-700 px-3 py-1 rounded text-xs font-bold border">オリジナル読込</button>
-                    <button id="copyRawBtn" class0 px-2 py-1 rounded text-xs">ログ</button>
-            <button id="exportStats" class="bg-green-100 text-green-800 px-2 py-1 rounded="bg-gray-500 text-white px-3 py-1 rounded text-xs font-bold text-xs">保存</button>
-            <button id="importStats" class="bg-green-1">コピー</button>
+                    <button id="copyRawBtn" class="bg-gray-500 text-white px-3 py-1 rounded text-xs font-bold">コピー</button>
                     <button id="runFromRawBtn" class="bg-teal-600 text-white px-3 py-1 rounded text-xs font-bold shadow">実行</button>
-00 text-green-800 px-2 py-1 rounded text-xs">読込</button>
-            <input type="file" id="importFile" class="hidden" accept=".json">
-                            </div>
+                </div>
             </div>
         </details>
       </div>
 
-      <div id="genreFilter" class="mt-3 pt-2 border<button id="clearStats" class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs">リセット</button>
-            <button id="manageDeletedBtn-t grid grid-cols-2 sm:grid-cols-4 gap-x-2 gap-y-" class="bg-red-50 text-red-700 px-2 py-1 rounded text2">
-        <label class="flex items-center text-xs sm:text-sm cursor-pointer"><-xs">削除管理</button>
-            <button id="copyCsvBtn" class="bg-indigo-input type="checkbox" class="genre-cb h-4 w-4 mr-1" value="法規100 text-indigo-800 px-2 py-1 rounded text-xs">抽出コピー</等" checked>法規等</label>
-        <label class="flex items-center text-xs smbutton>
+      <div id="genreFilter" class="mt-3 pt-2 border-t grid grid-cols-2 sm:grid-cols-4 gap-x-2 gap-y-2">
+        <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="genre-cb h-4 w-4 mr-1" value="法規等" checked>法規等</label>
+        <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="genre-cb h-4 w-4 mr-1" value="基準点測量" checked>基準点測量</label>
+        <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="genre-cb h-4 w-4 mr-1" value="地図・GIS" checked>地図・GIS</label>
+        <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="genre-cb h-4 w-4 mr-1" value="応用測量" checked>応用測量</label>
+      </div>
+
+      <div class="mt-2 pt-2 border-t">
+        <details>
+          <summary class="cursor-pointer text-xs text-gray-500">詳細設定・ログ管理</summary>
+          <div class="mt-2 grid grid-cols-2 gap-2">
+            <div><label class="block text-xs text-gray-500">除外: 最低正解数</label><input id="minCorrect" type="number" min="1" value="3" class="mt-1 w-full border border-gray-300 rounded text-sm p-1" /></div>
+            <div><label class="block text-xs text-gray-500">除外: 最低正答率(%)</label><input id="minRate" type="number" min="0" max="100" value="80" class="mt-1 w-full border border-gray-300 rounded text-sm p-1" /></div>
+          </div>
+          <div class="mt-2 pt-2 border-t flex flex-wrap items-center gap-2">
+            <label class="flex items-center text-xs text-gray-600"><input id="soundToggle" type="checkbox" class="mr-1" checked />音</label>
+            <div class="flex-grow"></div>
+            <button id="showStats" class="bg-gray-200 px-2 py-1 rounded text-xs">ログ</button>
+            <button id="exportStats" class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">保存</button>
+            <button id="importStats" class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">読込</button>
+            <input type="file" id="importFile" class="hidden" accept=".json">
+            <button id="clearStats" class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs">リセット</button>
+            <button id="manageDeletedBtn" class="bg-red-50 text-red-700 px-2 py-1 rounded text-xs">削除管理</button>
+            <button id="copyCsvBtn" class="bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-xs">抽出コピー</button>
           </div>
         </details>
       </div>
-      <div id="notice" class="text:text-sm cursor-pointer"><input type="checkbox" class="genre-cb h-4 w-4 mr-1" value="基準点測量" checked>基準点測量</label>
-        <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="genre-cb h-4 w-4 mr-1" value="地図・GIS" checked>地図・-sm text-yellow-600 mt-2 text-center"></div>
+      <div id="notice" class="text-sm text-yellow-600 mt-2 text-center"></div>
     </section>
 
-    GIS</label>
-        <label class="flex items-center text-xs sm:text-sm cursor-<main id="quizArea" class="space-y-4"></main>
+    <main id="quizArea" class="space-y-4"></main>
 
     <!-- 結果モーダル -->
-    <div id="resultModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center zpointer"><input type="checkbox" class="genre-cb h-4 w-4 mr-1" value="-50">
+    <div id="resultModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
       <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md mx-4 text-center">
-        <h2 class="text-xl font応用測量" checked>応用測量</label>
-      </div>
-
-      <div class="mt-2-bold mb-4">結果発表</h2>
-        <p id="scoreText" class="text-4xl pt-2 border-t">
-        <details>
-          <summary class="cursor-pointer text-xs text-gray-50 font-bold my-4 text-blue-600"></p>
+        <h2 class="text-xl font-bold mb-4">結果発表</h2>
+        <p id="scoreText" class="text-4xl font-bold my-4 text-blue-600"></p>
         <p id="feedbackText" class="text-base text-gray-700 mb-6"></p>
-        <div class0">詳細設定・ログ管理</summary>
-          <div class="mt-2 grid grid-cols-="space-y-2">
-            <button id="retryWrongBtn" class="w-full bg-2 gap-2">
-            <div><label class="block text-xs text-gray-500">orange-500 text-white font-bold py-2 px-4 rounded hidden">間違えた問題のみ除外: 最低正解数</label><input id="minCorrect" type="number" min="1リトライ</button>
-            <button id="retryBtn" class="w-full bg-indigo-5" value="3" class="mt-1 w-full border border-gray-300 rounded text-00 text-white font-bold py-2 px-4 rounded">同じ問題でもう一度</button>sm p-1" /></div>
-            <div><label class="block text-xs text-gray-50
+        <div class="space-y-2">
+            <button id="retryWrongBtn" class="w-full bg-orange-500 text-white font-bold py-2 px-4 rounded hidden">間違えた問題のみリトライ</button>
+            <button id="retryBtn" class="w-full bg-indigo-500 text-white font-bold py-2 px-4 rounded">同じ問題でもう一度</button>
             <button id="newQuizBtn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded">新しい問題で挑戦</button>
-            <button id0">除外: 最低正答率(%)</label><input id="minRate" type="number" min="0" max="100" value="80" class="mt-1 w-full="closeModalBtn" class="w-full bg-gray-200 text-gray-700 border border-gray-300 rounded text-sm p-1" /></div>
-          </div>
-          < font-bold py-2 px-4 rounded">閉じる</button>
+            <button id="closeModalBtn" class="w-full bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded">閉じる</button>
         </div>
       </div>
-    div class="mt-2 pt-2 border-t flex flex-wrap items-center gap-2">
-</div>
+    </div>
 
     <!-- 削除管理モーダル -->
-    <div id="deletedModal" class="hidden fixed inset            <label class="flex items-center text-xs text-gray-600"><input id="sound-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
-      <div class="bg-white pToggle" type="checkbox" class="mr-1" checked />音</label>
-            <div class="-6 rounded-lg shadow-xl w-full max-w-lg mx-4">
-        <divflex-grow"></div>
-            <button id="showStats" class="bg-gray-200 px-2 py-1 rounded text-xs">ログ</button>
-            <button id="exportStats" class="bg-green-100 text-green-800 px-2 py-1 rounded text- class="flex justify-between items-center mb-4">
+    <div id="deletedModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+      <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg mx-4">
+        <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-bold">削除済みの問題</h3>
           <div>
-            <button id="restoreAllBtn" class="bgxs">保存</button>
-            <button id="importStats" class="bg-green-100-green-100 text-green-800 px-3 py-1 rounded text-sm mr-2">全復元</button>
-            <button id="closeDeletedModal" class="bg-gray text-green-800 px-2 py-1 rounded text-xs">読込</button>
-            <input type="file" id="importFile" class="hidden" accept=".json">
-            <button-100 text-gray-700 px-3 py-1 rounded text-sm">閉じる</button>
+            <button id="restoreAllBtn" class="bg-green-100 text-green-800 px-3 py-1 rounded text-sm mr-2">全復元</button>
+            <button id="closeDeletedModal" class="bg-gray-100 text-gray-700 px-3 py-1 rounded text-sm">閉じる</button>
           </div>
         </div>
-        <div id="deletedList" class="space-y- id="clearStats" class="bg-red-100 text-red-700 px-22 text-sm text-gray-700 max-h-72 overflow-auto"></div>
-       py-1 rounded text-xs">リセット</button>
-            <button id="manageDeletedBtn" class</div>
+        <div id="deletedList" class="space-y-2 text-sm text-gray-700 max-h-72 overflow-auto"></div>
+      </div>
     </div>
 
     <!-- APIキー設定モーダル -->
-    <div id="apiKeyModal" class="="bg-red-50 text-red-700 px-2 py-1 rounded text-xshidden fixed inset-0 bg-gray-800 bg-opacity-75 overflow-y-auto h-full w-full flex items-center justify-center z-50">
-      <div class="bg">削除管理</button>
-            <button id="copyCsvBtn" class="bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-xs">抽出コピー</button>-white p-6 rounded-lg shadow-xl w-full max-w-md mx-4">
-
-          </div>
-        </details>
-      </div>
-      <div id="notice" class="text-sm        <h3 class="text-lg font-bold mb-2">APIキーの設定</h3>
-        <p text-yellow-600 mt-2 text-center"></div>
-    </section>
-
-    <main class="text-sm text-gray-600 mb-4">Google AI StudioのAPIキーを入力してください id="quizArea" class="space-y-4"></main>
-
-    <!-- 結果モーダル -->
-    （ブラウザ保存）</p>
-        <input type="password" id="apiKeyInput" class="w-<div id="resultModal" class="hidden fixed inset-0 bg-gray-600 bg-opacityfull border p-2 rounded mb-4" placeholder="AIzaSy..." />
-        <div class="flex-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
-      <div class="bg-white p-6 rounded-lg shadow-xl w-full max justify-end gap-2">
+    <div id="apiKeyModal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+      <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md mx-4">
+        <h3 class="text-lg font-bold mb-2">APIキーの設定</h3>
+        <p class="text-sm text-gray-600 mb-4">Google AI StudioのAPIキーを入力してください</p>
+        <input type="password" id="apiKeyInput" class="w-full border p-2 rounded mb-4" placeholder="AIzaSy..." />
+        <div class="flex justify-end gap-2">
             <button id="cancelApiKeyBtn" class="bg-gray-200 text-gray-700 px-4 py-2 rounded">閉じる</button>
-            -w-md mx-4 text-center">
-        <h2 class="text-xl font-bold<button id="saveApiKeyBtn" class="bg-blue-600 text-white px-4 py mb-4">結果発表</h2>
-        <p id="scoreText" class="text-4xl font--2 rounded font-bold">保存</button>
+            <button id="saveApiKeyBtn" class="bg-blue-600 text-white px-4 py-2 rounded font-bold">保存</button>
         </div>
       </div>
     </div>
   </div>
 
 <script>
-/* 定数・設定 */
-const csvFilesFallback = ["knowledge.csv", "basic.bold my-4 text-blue-600"></p>
-        <p id="feedbackText" classcsv"]; 
+/* 設定 */
+const csvFilesFallback = ["knowledge.csv", "basic.csv"]; 
 const STORAGE_KEY = "rccmDrillStats_v4_ID";
-const="text-base text-gray-700 mb-6"></p>
-        <div class="space DELETED_KEY = "rccmDrillDeleted_v1";
-const MEMO_KEY = "-y-2">
-            <button id="retryWrongBtn" class="w-full bg-orange-500 text-white font-bold py-2 px-4 rounded hidden">間違えた問題のみリトライrccmDrillMemos_v1";
+const DELETED_KEY = "rccmDrillDeleted_v1";
+const MEMO_KEY = "rccmDrillMemos_v1";
 const SETTINGS_KEY = "rccmDrillSettings_v1"; 
-const API_KEY_STORAGE = "rccmDrillApiKey_v1</button>
-            <button id="retryBtn" class="w-full bg-indigo-500"; 
-const AI_MODEL = "gemini-2.5-flash-lite"; 
+const API_KEY_STORAGE = "rccmDrillApiKey_v1"; 
+const AI_MODEL = "gemini-2.5-flash-lite"; // 指定モデル
 
-/* DOM text-white font-bold py-2 px-4 rounded">同じ問題でもう一度</button>
-            要素 */
+/* DOM要素 */
 const els = {
-    csv: document.getElementById("csvSelect"),
-    load: document.<button id="newQuizBtn" class="w-full bg-blue-600 text-white fontgetElementById("loadBtn"),
-    raw: document.getElementById("rawCsvArea"),
-    runRaw: document.getElementById("runFromRawBtn"),
-    resetRaw: document.getElementById("resetRawBtn"),
-    copyRaw-bold py-2 px-4 rounded">新しい問題で挑戦</button>
-            <button id="close: document.getElementById("copyRawBtn"),
-    indicator: document.getElementById("editModeIndicator"),
-    font: document.getElementById("fontSizeSelect"),
-    retry: document.getElementById("retryBtn"),
-    retryWrong:ModalBtn" class="w-full bg-gray-200 text-gray-700 font- document.getElementById("retryWrongBtn"),
-    quizArea: document.getElementById("quizArea"),
-    num:bold py-2 px-4 rounded">閉じる</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 削除管理モーダル -->
-    <div id="deletedModal" class="hidden fixed inset-0 document.getElementById("numSelect"),
-    minCorrect: document.getElementById("minCorrect"),
-    minRate: document.getElementById("minRate"),
-    sound: document.getElementById("soundToggle"),
-    clearStats: document bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full.getElementById("clearStats"),
-    showStats: document.getElementById("showStats"),
-    exportStats: document flex items-center justify-center z-50">
-      <div class="bg-white p-6.getElementById("exportStats"),
-    importStats: document.getElementById("importStats"),
-    importFile: document rounded-lg shadow-xl w-full max-w-lg mx-4">
-        <div class=".getElementById("importFile"),
-    notice: document.getElementById("notice"),
-    resultModal: document.getElementByIdflex justify-between items-center mb-4">
-          <h3 class="text-lg font-bold("resultModal"),
-    score: document.getElementById("scoreText"),
-    feedback: document.getElementById("feedbackText"),
-    newQuiz: document.getElementById("newQuizBtn"),
-    closeModal: document.getElementById("">削除済みの問題</h3>
-          <div>
-            <button id="restoreAllBtn" class="bg-greencloseModalBtn"),
-    manageDel: document.getElementById("manageDeletedBtn"),
-    delModal: document.-100 text-green-800 px-3 py-1 rounded text-sm mr-2getElementById("deletedModal"),
-    delList: document.getElementById("deletedList"),
-    closeDel: document.">全復元</button>
-            <button id="closeDeletedModal" class="bg-gray-1getElementById("closeDeletedModal"),
-    restoreAll: document.getElementById("restoreAllBtn"),
-    copyCsv:00 text-gray-700 px-3 py-1 rounded text-sm">閉じる</button document.getElementById("copyCsvBtn"),
-    openKey: document.getElementById("openApiKeyBtn"),
-    keyModal: document.getElementById("apiKeyModal"),
-    keyInput: document.getElementById("apiKeyInput"),
-    save>
-          </div>
-        </div>
-        <div id="deletedList" class="space-y-2 text-sm text-gray-700 max-h-72 overflow-auto"></div>
-      </div>
-Key: document.getElementById("saveApiKeyBtn"),
+    csv: document.getElementById("csvSelect"), load: document.getElementById("loadBtn"),
+    raw: document.getElementById("rawCsvArea"), runRaw: document.getElementById("runFromRawBtn"),
+    resetRaw: document.getElementById("resetRawBtn"), copyRaw: document.getElementById("copyRawBtn"),
+    indicator: document.getElementById("editModeIndicator"), font: document.getElementById("fontSizeSelect"),
+    retry: document.getElementById("retryBtn"), retryWrong: document.getElementById("retryWrongBtn"),
+    quizArea: document.getElementById("quizArea"), num: document.getElementById("numSelect"),
+    minCorrect: document.getElementById("minCorrect"), minRate: document.getElementById("minRate"),
+    sound: document.getElementById("soundToggle"), clearStats: document.getElementById("clearStats"),
+    showStats: document.getElementById("showStats"), exportStats: document.getElementById("exportStats"),
+    importStats: document.getElementById("importStats"), importFile: document.getElementById("importFile"),
+    notice: document.getElementById("notice"), resultModal: document.getElementById("resultModal"),
+    score: document.getElementById("scoreText"), feedback: document.getElementById("feedbackText"),
+    newQuiz: document.getElementById("newQuizBtn"), closeModal: document.getElementById("closeModalBtn"),
+    manageDel: document.getElementById("manageDeletedBtn"), delModal: document.getElementById("deletedModal"),
+    delList: document.getElementById("deletedList"), closeDel: document.getElementById("closeDeletedModal"),
+    restoreAll: document.getElementById("restoreAllBtn"), copyCsv: document.getElementById("copyCsvBtn"),
+    openKey: document.getElementById("openApiKeyBtn"), keyModal: document.getElementById("apiKeyModal"),
+    keyInput: document.getElementById("apiKeyInput"), saveKey: document.getElementById("saveApiKeyBtn"),
     cancelKey: document.getElementById("cancelApiKeyBtn")
 };
 
 /* 状態変数 */
-let currentSet = [], allQuestions = [], statsCache = loadStats(), memos    </div>
-
-    <!-- APIキー設定モーダル -->
-    <div id="apiKeyModal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 overflow-y-auto h-fullCache = loadMemos();
+let currentSet = [], allQuestions = [], statsCache = loadStats(), memosCache = loadMemos();
 let answeredCount = 0, lastWrongIds = [], isManualMode = false;
+let chatHistories = {}; // チャット履歴保存用 { questionId: [{role, parts}] }
 
 /* 初期化 */
 (async function init() {
@@ -337,7 +206,6 @@ let answeredCount = 0, lastWrongIds = [], isManualMode = false;
   els.font.addEventListener("change", () => renderAll(currentSet));
   els.raw.addEventListener('input', () => { isManualMode = true; els.indicator.classList.remove('hidden'); });
 
-  // APIキーモーダル
   els.openKey.addEventListener("click", () => {
       els.keyInput.value = localStorage.getItem(API_KEY_STORAGE) || "";
       els.keyModal.classList.remove("hidden");
@@ -350,10 +218,7 @@ let answeredCount = 0, lastWrongIds = [], isManualMode = false;
           alert("保存しました。");
           els.keyModal.classList.add("hidden");
       } else {
-          if(confirm("キーを削除しますか？")) {
-              localStorage.removeItem(API_KEY_STORAGE);
-              els.keyModal.classList.add("hidden");
-          }
+          if(confirm("削除しますか？")) { localStorage.removeItem(API_KEY_STORAGE); els.keyModal.classList.add("hidden"); }
       }
   });
 })();
@@ -377,7 +242,6 @@ function loadUISettings() {
     } catch(e){}
 }
 
-/* ユーティリティ */
 let audioCtx = null;
 function playDoReMi(){
   if(!els.sound.checked) return;
@@ -386,385 +250,81 @@ function playDoReMi(){
       const o=audioCtx.createOscillator(), g=audioCtx.createGain(); 
       o.connect(g); g.connect(audioCtx.destination);
       o.frequency.value=f; g.gain.setValueAtTime(0.05, audioCtx.currentTime+t); 
-      g.gain. w-full flex items-center justify-center z-50">
-      <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md mx-4">
-        <h3 class="text-lg font-bold mb-2">APIキーの設定</h3>
-        <p class="text-sm text-gray-600 mb-4">Google AI StudioのAPIキーを入力してください（ブラウザ保存）</p>
-        <input type="password" id="apiKeyInput" class="w-full border p-2 rounded mb-4" placeholder="AIzaSy..." />
-        <div class="flex justify-end gap-2">
-            <button id="cancelApiKeyBtn" class="bg-gray-200 text-gray-700 px-4 py-2 rounded">閉じる</button>
-            <button id="saveApiKeyBtn" class="bg-blue-600 text-white px-4 py-2 rounded font-bold">保存</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-<script>
-/* 定数・exponentialRampToValueAtTime(0.001, audioCtx.currentTime+t+0.1);
-      o.start(audioCtx.currentTime+t); o.stop(audioCtx.currentTime+t設定 */
-const csvFilesFallback = ["knowledge.csv", "basic.csv"]; 
-const STORAGE_KEY = "rccmDrillStats_v4_ID";
-const DELETED_KEY = "rccmDrillDeleted_v1";
-const MEMO_KEY = "rccmDrillMemos_v1";
-const SETTINGS_KEY = "rccmDrillSettings_v1"; 
-const API_KEY_STORAGE = "rccmDrillApiKey_v1"; 
-const AI_MODEL = "gemini-2.5-flash-lite"; 
-
-/* DOM要素 */
-const els = {
-    csv: document.getElementById("csvSelect"),
-    load: document.getElementById("loadBtn"),
-    raw: document.getElementById("rawCsvArea"),
-    runRaw: document.getElementById("runFromRawBtn"),
-    resetRaw: document.getElementById("resetRawBtn"),
-    copyRaw: document.getElementById("copyRawBtn"),
-    indicator: document.getElementById("editModeIndicator"),
-    font: document.getElementById("fontSizeSelect"),
-    retry: document.getElementById("retryBtn"),
-    retryWrong: document.getElementById("retryWrongBtn"),
-    quizArea: document.getElementById("quizArea"),
-    num: document.getElementById("numSelect"),
-    minCorrect: document.getElementById("minCorrect"),
-    minRate: document.getElementById("minRate"),
-    sound: document.getElementById("soundToggle"),
-    clearStats: document.getElementById("clearStats"),
-    showStats: document.getElementById("showStats"),
-    exportStats: document.getElementById("exportStats"),
-    importStats: document.getElementById("importStats"),
-    importFile: document.getElementById("importFile"),
-    notice: document.getElementById("notice"),
-    resultModal: document.getElementById("resultModal"),
-    score: document.getElementById("scoreText"),
-    feedback: document.getElementById("feedbackText"),
-    newQuiz: document.getElementById("newQuizBtn"),
-    closeModal: document.getElementById("closeModalBtn"),
-    manageDel: document.getElementById("manageDeletedBtn"),
-    delModal: document.getElementById("deletedModal"),
-    delList: document.getElementById("deletedList"),
-    closeDel: document.getElementById("closeDeletedModal"),
-    restoreAll: document.getElementById("restoreAllBtn"),
-    copyCsv: document.getElementById("copyCsvBtn"),
-    openKey: document.getElementById("openApiKeyBtn"),
-    keyModal: document.getElementById("apiKeyModal"),
-    keyInput: document.getElementById("apiKeyInput"),
-    saveKey: document.getElementById("saveApiKeyBtn"),
-    cancelKey: document.getElementById("cancelApiKeyBtn")
-};
-
-/* 状態変数 */
-let currentSet = [], allQuestions = [], statsCache = loadStats(), memosCache = loadMemos();
-let answeredCount = 0+0.15);
+      g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+t+0.1);
+      o.start(audioCtx.currentTime+t); o.stop(audioCtx.currentTime+t+0.15);
   };
   play(523.25,0); play(587.33,0.15); play(659.25,0.3);
 }
-// 改行処理: ◆ -> <br>
-function cleanText(s) { return s, lastWrongIds = [], isManualMode = false;
-let chatHistories = {}; // チャット履歴を保持するオブジェクト
+function cleanText(s) { return s ? s.toString().trim().replaceAll("◆","<br>").replace(/\n/g,"<br>") : ""; }
+function shuffleArray(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
 
-/* 初期化 */
-(async function init() {
-  let list = [];
-  try { const r = await fetch("index.json"); if(r.ok) list = await r.json(); } catch(e){} ? s.toString().trim().replaceAll("◆","<br>").replace(/\n/g,"<br>") : ""; }
-function shuffleArray(a){ for(let i=a.length-1;i>0
-  if (!Array.isArray(list) || list.length === 0) list = csvFilesFallback;;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
-
-/* データ処理 */
-function buildQuestions
-  list.forEach(f => { const opt = document.createElement("option"); opt.value=f; opt.textContent=f; els.csv.appendChild(opt); });
-  
-  loadUISettings();
-FromCSV(text){
+function buildQuestionsFromCSV(text){
   const parsed = Papa.parse(text, { header:true, skipEmptyLines:true });
   return parsed.data.map((row) => {
-    const id = row["ID  [els.csv, els.font, els.num, els.minCorrect, els.minRate,"] || "", genre = row["ジャンル"] || "未分類";
-    const qText = cleanText( els.sound].forEach(e => e.addEventListener('change', saveUISettings));
-  document.querySelectorAll('.genre-cb').forEach(e => e.addEventListener('change', saveUISettings));
-  els.font.addEventListener("change", () => renderAll(currentSet));
-  els.raw.addEventListener('input', () =>row["問題"]), correctText = cleanText(row["正解"]);
+    const id = row["ID"] || "", genre = row["ジャンル"] || "未分類";
+    const qText = cleanText(row["問題"]), correctText = cleanText(row["正解"]);
     if (!id || !qText || !correctText) return null;
     const rawOptions = [correctText, cleanText(row["選択肢2"]), cleanText(row["選択肢3"]), cleanText(row["選択肢4"]), cleanText(row["選択肢5"])].filter(Boolean);
     shuffleArray(rawOptions);
-    const optionsMap { isManualMode = true; els.indicator.classList.remove('hidden'); });
-
-  // APIキーモーダル
-  els.openKey.addEventListener("click", () => {
-      els.keyInput.value = = {}, labels = ["a", "b", "c", "d", "e"];
-    rawOptions. localStorage.getItem(API_KEY_STORAGE) || "";
-      els.keyModal.classList.remove("hidden");
-  });
-  els.cancelKey.addEventListener("click", () => els.keyModal.classList.forEach((opt, i) => optionsMap[labels[i]] = opt);
+    const optionsMap = {}, labels = ["a", "b", "c", "d", "e"];
+    rawOptions.forEach((opt, i) => optionsMap[labels[i]] = opt);
     return { 
         id: id.trim(), genre: genre.trim(), question: qText, options: optionsMap, 
-add("hidden"));
-  els.saveKey.addEventListener("click", () => {
-      const val = els.keyInput.value.trim();
-      if(val) {
-          localStorage.setItem(API_KEY        answer: Object.keys(optionsMap).find(k => optionsMap[k] === correctText), 
-        correctText: correctText, explanation: cleanText(row["解説"]), hint: cleanText(row["_STORAGE, val);
-          alert("保存しました。");
-          els.keyModal.classList.add("ヒント"]) 
+        answer: Object.keys(optionsMap).find(k => optionsMap[k] === correctText), 
+        correctText: correctText, explanation: cleanText(row["解説"]), hint: cleanText(row["ヒント"]) 
     };
   }).filter(Boolean);
 }
 
-/* ストレージ */
-function loadhidden");
-      } else {
-          if(confirm("キーを削除しますか？")) {
-              localStorageStats(){ try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}")}catch{return{}} }
-function saveStats(o){ localStorage.setItem(STORAGE_KEY, JSON.stringify(o)) }.removeItem(API_KEY_STORAGE);
-              els.keyModal.classList.add("hidden");
-          }
-      }
-  });
-})();
-
-function saveUISettings() {
-    const s = {
-        
+function loadStats(){ try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}")}catch{return{}} }
+function saveStats(o){ localStorage.setItem(STORAGE_KEY, JSON.stringify(o)) }
 function loadDeleted(){ try{return JSON.parse(localStorage.getItem(DELETED_KEY)||"[]")}catch{return[]} }
 function saveDeleted(a){ localStorage.setItem(DELETED_KEY, JSON.stringify(a)) }
-function loadMemos(){ try{return JSON.parse(localStorage.getItem(MEMO_csv: els.csv.value, fontSize: els.font.value, num: els.num.value,
-        minCorrect: els.minCorrect.value, minRate: els.minRate.value, sound:KEY)||"{}")}catch{return{}} }
-function saveMemos(o){ localStorage.setItem(MEM els.sound.checked,
-        genres: Array.from(document.querySelectorAll('.genre-cb')).map(O_KEY, JSON.stringify(o)) }
-function shouldExclude(q, s, mc, mr){cb => ({val: cb.value, checked: cb.checked}))
-    };
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
-}
-function loadUISettings() {
-    try {
-        const s = JSON.parse(localStorage.getItem(SETTINGS_KEY));
-        if(!s) return;
+function loadMemos(){ try{return JSON.parse(localStorage.getItem(MEMO_KEY)||"{}")}catch{return{}} }
+function saveMemos(o){ localStorage.setItem(MEMO_KEY, JSON.stringify(o)) }
+function shouldExclude(q, s, mc, mr){
   const r = s[q.id]||{correct:0, total:0};
-  return r.total>0 && r.correct>=mc && (r.correct/r.total*100
-        if(s.csv) els.csv.value=s.csv; if(s.fontSize))>=mr;
+  return r.total>0 && r.correct>=mc && (r.correct/r.total*100)>=mr;
 }
 
-/* メイン処理 */
 async function loadAndRender(isRetry=false, onlyWrong=false, forceManual=false, forceFetch=false) {
   els.notice.textContent = ""; els.quizArea.innerHTML = ""; answeredCount=0;
-  els.resultModal.classList.add(" els.font.value=s.fontSize;
-        if(s.num) els.num.value=s.num; if(s.minCorrect) els.minCorrect.value=s.minCorrect;
-hidden"); statsCache=loadStats(); memosCache=loadMemos();
+  els.resultModal.classList.add("hidden"); statsCache=loadStats(); memosCache=loadMemos();
+  chatHistories = {}; // リセット
 
-  if(forceFetch) { is        if(s.minRate) els.minRate.value=s.minRate; if(s.ManualMode=false; els.indicator.classList.add('hidden'); }
-  else if(forceManual)sound!==undefined) els.sound.checked=s.sound;
-        if(s.genres) s.genres.forEach(g => { const cb=document.querySelector(`.genre-cb[value="${g.val}"] { isManualMode=true; els.indicator.classList.remove('hidden'); }
+  if(forceFetch) { isManualMode=false; els.indicator.classList.add('hidden'); }
+  else if(forceManual) { isManualMode=true; els.indicator.classList.remove('hidden'); }
 
   if(isRetry) {
-      if(onlyWrong) currentSet = currentSet.filter(q => lastWrongIds.includes`); if(cb) cb.checked=g.checked; });
-    } catch(e){}
-}
-
-/* ユーティリティ */
-let audioCtx = null;
-function playDoReMi(){
-  if(!(q.id));
+      if(onlyWrong) currentSet = currentSet.filter(q => lastWrongIds.includes(q.id));
       if(!currentSet.length) { els.notice.textContent="問題がありません"; return; }
       renderAll(currentSet); return;
   }
 
   const genres = Array.from(document.querySelectorAll('.genre-cb:checked')).map(cb => cb.value);
-  if(!els.sound.checked) return;
-  if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-  const play=(f,t)=>{ 
-      const o=audiogenres.length) { els.notice.textContent="ジャンルを選択してください"; return; }
+  if(!genres.length) { els.notice.textContent="ジャンルを選択してください"; return; }
 
-  const num=parseInt(els.num.value)||10, minC=parseInt(els.minCorrect.value)||3Ctx.createOscillator(), g=audioCtx.createGain(); 
-      o.connect(g); g, minR=parseFloat(els.minRate.value)||80;
-  const delIds=new Set.connect(audioCtx.destination);
-      o.frequency.value=f; g.gain.setValueAt(loadDeleted());
+  const num=parseInt(els.num.value)||10, minC=parseInt(els.minCorrect.value)||3, minR=parseFloat(els.minRate.value)||80;
+  const delIds=new Set(loadDeleted());
 
   try {
     let text = "";
-    if(isManualMode && !forceTime(0.05, audioCtx.currentTime+t); 
-      g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+t+0.1);
-      Fetch) {
+    if(isManualMode && !forceFetch) {
         text = els.raw.value;
         if(!text.trim()) throw new Error("CSVデータがありません");
     } else {
-        const r = await fetch(els.csv.valueo.start(audioCtx.currentTime+t); o.stop(audioCtx.currentTime+t+0.);
+        const r = await fetch(els.csv.value);
         if(!r.ok) throw new Error("ファイル取得失敗");
         text = await r.text();
         els.raw.value = text;
         if(forceFetch) { isManualMode=false; els.indicator.classList.add('hidden'); }
     }
     
-    allQuestions = build15);
-  };
-  play(523.25,0); play(587.33,0.15); play(659.25,0.3);
-}QuestionsFromCSV(text);
-    const filtered = allQuestions.filter(q => genres.includes(q.
-// 改行処理: ◆ -> <br>
-function cleanText(s) { return s ? s.toString().trim().replaceAll("◆","<br>").replace(/\n/g,"<br>") : ""; }genre) && !delIds.has(q.id));
-    let candidates = filtered.filter(q =>
-function shuffleArray(a){ for(let i=a.length-1;i>0;i--){ !shouldExclude(q, statsCache, minC, minR));
+    allQuestions = buildQuestionsFromCSV(text);
+    const filtered = allQuestions.filter(q => genres.includes(q.genre) && !delIds.has(q.id));
+    let candidates = filtered.filter(q => !shouldExclude(q, statsCache, minC, minR));
     
     if(candidates.length < num && filtered.length >= num) {
-        els.notice.textContent = `学習済みを除くと${ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
-
-/* データ処理 */
-function buildQuestionsFromCSV(text){
-  const parsed = Papa.parse(text, { header:true, skipEmptyLines:true });candidates.length}問しかありません。補充します。`;
-        const ex = filtered.filter(q => shouldExclude(q, statsCache, minC, minR));
-        shuffleArray(ex); candidates.push(...ex.slice(0, num - candidates.length));
-    }
-    shuffleArray(candidates);
-    
-  return parsed.data.map((row) => {
-    const id = row["ID"] || "", genre = row["ジャンル"] || "未分類";
-    const qText = cleanText(row["問題"]), correctText = cleanText(row["正解"]);
-    if (!id || !qText || !correctcurrentSet = candidates.slice(0, Math.min(num, filtered.length));
-    
-    if(!currentSet.length) { els.notice.textContent="出題できる問題がありません"; return; }
-    renderAll(currentSet);
-
-  } catch(err) { els.quizArea.innerHTML=`<div class="text-red-600 p-4">${err.message}</div>`; }
-}
-
-functionText) return null;
-    const rawOptions = [correctText, cleanText(row["選択肢2"]), renderAll(set){
-  els.quizArea.innerHTML = "";
-  const font = els.font. cleanText(row["選択肢3"]), cleanText(row["選択肢4"]), cleanText(row["選択value;
-  set.forEach((q, i) => {
-    const card = document.createElement("div");
-    card.className = `bg-white p-4 rounded shadow ${font}`;
-    card.dataset肢5"])].filter(Boolean);
-    shuffleArray(rawOptions);
-    const optionsMap = {}, labels = ["a", "b", "c", "d", "e"];
-    rawOptions.forEach((opt.id = q.id;
-    
-    // ヘッダー
-    const head = document.createElement("div");
-    head.className = "flex justify-between items-center mb-2 pb-2 border-, i) => optionsMap[labels[i]] = opt);
-    return { 
-        id: idb";
-    head.innerHTML = `<div><span class="font-bold text-blue-600">問${i+1}</span> <span class="text-xs text-gray-400">[${.trim(), genre: genre.trim(), question: qText, options: optionsMap, 
-        answer:q.id}]</span></div>`;
-    const delBtn = document.createElement("button");
-    delBtn.className = "text-red-400 text-xs"; delBtn.textContent = "削除";
-     Object.keys(optionsMap).find(k => optionsMap[k] === correctText), 
-        correctText: correctText, explanation: cleanText(row["解説"]), hint: cleanText(row["ヒント"]) 
-    };
-  }).filter(Boolean);
-}
-
-/* ストレージ */
-function loadStats(){ trydelBtn.onclick = () => {
-        if(!confirm("削除しますか？")) return;
-        const d=loadDeleted(); if(!d.includes(q.id)){ d.push(q.id); save{return JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}")}catch{return{}} }
-function saveStats(o){ localStorage.setItem(STORAGE_KEY, JSON.stringify(o)) }
-function loadDeleted(d); }
-        currentSet=currentSet.filter(c=>c.id!==q.idDeleted(){ try{return JSON.parse(localStorage.getItem(DELETED_KEY)||"[]")}catch{return); card.remove();
-        if(answeredCount===currentSet.length) showResult();
-    };
-    head.appendChild(delBtn); card.appendChild(head);
-
-    // 問題文
-    const qDiv = document.createElement("div"); qDiv.className = "mb-4"; qDiv.innerHTML = q.question;
-    card.appendChild(qDiv);
-
-    // --- タブUI ---
-    const tabContainer = document.createElement("div");
-    tabContainer.className = "mb-4 border rounded overflow-hidden";
-    const tabHeader = document.createElement("div");
-    tabHeader.className = "flex border-b bg-gray-50";
-    const tabIds = ["hint", "memo", "ai"];
-    []} }
-function saveDeleted(a){ localStorage.setItem(DELETED_KEY, JSON.stringify(a)) }
-function loadMemos(){ try{return JSON.parse(localStorage.getItem(MEMO_KEY)||"{}")}catch{return{}} }
-function saveMemos(o){ localStorage.setItem(MEMO_KEY, JSON.stringify(o)) }
-function shouldExclude(q, s, mc, mr){
-  const r = s[q.id]||{correct:0, total:0};
-  return r.total>0 && r.correct>=mc && (r.correct/r.total*100)>=mr;const tabLabels = ["💡 ヒント", "📝 メモ", "🤖 AI"];
-    const contentDivs = {};
-
-    tabLabels.forEach((label, idx) => {
-        const id = tabIds[idx
-}
-
-/* メイン処理 */
-async function loadAndRender(isRetry=false, onlyWrong=false];
-        const btn = document.createElement("button");
-        btn.className = "flex-1 py-, forceManual=false, forceFetch=false) {
-  els.notice.textContent = ""; els.quizArea.innerHTML = ""; answeredCount=0;
-  els.resultModal.classList.add("hidden"); stats2 text-xs sm:text-sm font-medium tab-btn";
-        btn.textContent = label;Cache=loadStats(); memosCache=loadMemos();
-  chatHistories = {}; // 新しいセットの
-        btn.onclick = (e) => {
-            Object.values(contentDivs).forEach(d => d.classList.add("hidden"));
-            Array.from(tabHeader.children).forEach(b => b.classList.remove("active"));
-            if(contentDivs[id].classList.contains("hidden")) { 
-                contentDivs[id].時はチャット履歴をリセット（必要ならコメントアウト）
-
-  if(forceFetch) { isManualMode=false; els.indicator.classList.add('hidden'); }
-  else if(forceManual) { isManualMode=classList.remove("hidden");
-                e.target.classList.add("active");
-            }
-        };
-        tabHeader.appendChild(btn);
-    });
-    tabContainer.appendChild(tabHeader);
-
-    const contentArea = document.createElement("div");
-    contentArea.className = "p-3 bg-whitetrue; els.indicator.classList.remove('hidden'); }
-
-  if(isRetry) {
-      if(onlyWrong) currentSet = currentSet.filter(q => lastWrongIds.includes(q.id)); min-h-[100px]";
-
-    // 1. ヒント
-    const hintDiv = document
-      if(!currentSet.length) { els.notice.textContent="問題がありません"; return; }
-.createElement("div");
-    hintDiv.className = "hidden text-sm text-yellow-800";
-    hintDiv.innerHTML = q.hint ? `<strong>ヒント:</strong> ${q.hint}` : "ヒントはありません。";
-    contentDivs["hint"] = hintDiv; contentArea.appendChild(hintDiv);
-
-    // 2. メモ
-    const memoDiv = document.createElement("div");
-          renderAll(currentSet); return;
-  }
-
-  const genres = Array.from(document.querySelectorAll('.genre-cb:checked')).map(cb => cb.value);
-  if(!genres.length) { els.notice.textContent="ジャンルを選択してください"; return; }
-
-  const num=parseInt(els.num.value)||10, minC=parseInt(els.minCorrect.value)||3, minR=parseFloatmemoDiv.className = "hidden";
-    const memoTxt = document.createElement("textarea");
-    memoTxt.className = "w-full border p-2 h-24 text-sm rounded";
-    memoTxt.placeholder = "自分用メモ...";
-    memoTxt.value = memosCache[q.id] || "";(els.minRate.value)||80;
-  const delIds=new Set(loadDeleted());
-
-  try {
-    let text = "";
-    if(isManualMode && !forceFetch) {
-        
-    memoTxt.oninput = (e) => saveMemos({...loadMemos(), [q.idtext = els.raw.value;
-        if(!text.trim()) throw new Error("CSVデータがありません]: e.target.value});
-    memoDiv.appendChild(memoTxt);
-    contentDivs["memo");
-    } else {
-        const r = await fetch(els.csv.value);
-        if(!r.ok) throw new Error("ファイル取得失敗");
-        text = await r.text();
-        els"] = memoDiv; contentArea.appendChild(memoDiv);
-
-    // 3. AI (チャット形式)
-    const aiDiv = document.createElement("div");
-    aiDiv.className = "hidden flex flex-col h-64";
-    aiDiv.innerHTML = `
-        <div class="chat-log flex-.raw.value = text;
-        if(forceFetch) { isManualMode=false; els.indicator.classList.add('hidden'); }
-    }
-    
-    allQuestions = buildQuestionsFromCSV(text);
-    const filtered = allQuestions.filter(q => genres.includes(q.genre) && !delgrow overflow-y-auto border p-2 mb-2 bg-gray-50 rounded text-sm"></div>
-        <div classIds.has(q.id));
-    let candidates = filtered.filter(q => !shouldExclude(q="flex gap-2">
-            <button class="bg-purple-600 text-white px-, statsCache, minC, minR));
-    
-    if(candidates.length < num && filtered.4 py-1.5 rounded text-xs font-bold hover:bg-purple-700 whitespace-nowrap">送信</button>length >= num) {
         els.notice.textContent = `学習済みを除くと${candidates.length}問しかありません。補充します。`;
         const ex = filtered.filter(q => shouldExclude(q, statsCache, minC, minR));
         shuffleArray(ex); candidates.push(...ex.slice(0, num - candidates.length));
@@ -772,128 +332,56 @@ async function loadAndRender(isRetry=false, onlyWrong=false];
     shuffleArray(candidates);
     currentSet = candidates.slice(0, Math.min(num, filtered.length));
     
-    if(!currentSet.length
-            <input class="flex-grow border p-2 rounded text-sm" placeholder="AIに質問...">
-        </div>
-    `;
-    const chatLog = aiDiv.querySelector(".chat-log");
-    const aiSend) { els.notice.textContent="出題できる問題がありません"; return; }
-    renderAll(currentBtn = aiDiv.querySelector("button");
-    const aiInput = aiDiv.querySelector("input");
-    
-    // チャSet);
+    if(!currentSet.length) { els.notice.textContent="出題できる問題がありません"; return; }
+    renderAll(currentSet);
 
-  } catch(err) { els.quizArea.innerHTML=`<div class="text-redット履歴（このカード用）
-    let chatHistory = []; 
-
-    // チャット送信処理
-    const sendChat-600 p-4">${err.message}</div>`; }
+  } catch(err) { els.quizArea.innerHTML=`<div class="text-red-600 p-4">${err.message}</div>`; }
 }
 
 function renderAll(set){
   els.quizArea.innerHTML = "";
   const font = els.font.value;
-  set = async () => {
-        const k = localStorage.getItem(API_KEY_STORAGE);
-        if(!k) { alert("右上の「APIキー設定」からキーを保存してください"); return; }
-        const.forEach((q, i) => {
+  set.forEach((q, i) => {
     const card = document.createElement("div");
-    card. userText = aiInput.value.trim();
-        if(!userText) return;
-
-        // ユーザーの吹き出し追加
-        chatLog.innerHTML += `<div class="chat-bubble chat-user">${userText.replace(/\n/g,"className = `bg-white p-4 rounded shadow ${font}`;
+    card.className = `bg-white p-4 rounded shadow ${font}`;
     card.dataset.id = q.id;
     
-    // ヘッダー
     const head = document.createElement("div");
-    head<br>")}</div>`;
-        aiInput.value = "";
-        aiSendBtn.disabled = true; ai.className = "flex justify-between items-center mb-2 pb-2 border-b";
-    headSendBtn.textContent = "...";
-        chatLog.scrollTop = chatLog.scrollHeight; // 最下部へスクロール
-
-        try.innerHTML = `<div><span class="font-bold text-blue-600">問${i+1}</span> <span class="text-xs text-gray-400">[${q.id}]</span> {
-            // 履歴に追加
-            chatHistory.push({ role: "user", parts: [{ text: userText }] });
-</div>`;
+    head.className = "flex justify-between items-center mb-2 pb-2 border-b";
+    head.innerHTML = `<div><span class="font-bold text-blue-600">問${i+1}</span> <span class="text-xs text-gray-400">[${q.id}]</span></div>`;
     const delBtn = document.createElement("button");
-    delBtn.className = "text-            
-            // API呼び出し（文脈を含める）
-            const responseText = await getAIChatResponsered-400 text-xs"; delBtn.textContent = "削除";
+    delBtn.className = "text-red-400 text-xs"; delBtn.textContent = "削除";
     delBtn.onclick = () => {
         if(!confirm("削除しますか？")) return;
-        const d=loadDeleted();(q, chatHistory, k);
-            
-            // AIの吹き出し追加
-            chatLog.innerHTML += `<div class="chat-bubble chat-ai">${responseText}</div>`;
-            
-            // 履歴にAIの回答も追加（文 if(!d.includes(q.id)){ d.push(q.id); saveDeleted(d); }
+        const d=loadDeleted(); if(!d.includes(q.id)){ d.push(q.id); saveDeleted(d); }
         currentSet=currentSet.filter(c=>c.id!==q.id); card.remove();
         if(answeredCount===currentSet.length) showResult();
     };
-    head.appendChild(脈維持）
-            chatHistory.push({ role: "model", parts: [{ text: responseText }] });
+    head.appendChild(delBtn); card.appendChild(head);
 
-delBtn); card.appendChild(head);
-
-    // 問題文
     const qDiv = document.createElement("div"); qDiv.className = "mb-4"; qDiv.innerHTML = q.question;
-    card        } catch(e) {
-            chatLog.innerHTML += `<div class="text-red-500 text-.appendChild(qDiv);
+    card.appendChild(qDiv);
 
-    // --- タブUI ---
+    // タブUI
     const tabContainer = document.createElement("div");
     tabContainer.className = "mb-4 border rounded overflow-hidden";
-    const tabHeaderxs">エラー: ${e.message}</div>`;
-        } finally {
-            aiSendBtn.disabled = false; aiSendBtn.textContent = "送信";
-            chatLog.scrollTop = chatLog.scrollHeight;
- = document.createElement("div");
-    tabHeader.className = "flex border-b bg-gray-5        }
-    };
-
-    aiSendBtn.onclick = sendChat;
-    aiInput.onkeydown = (e) => { if(e.key === 'Enter') sendChat(); };
-
-    contentDivs["ai"] = aiDiv; contentArea.appendChild(aiDiv);
-
-    tabContainer.appendChild(contentArea);
-    card.appendChild(tab0";
+    const tabHeader = document.createElement("div");
+    tabHeader.className = "flex border-b bg-gray-50";
     const tabIds = ["hint", "memo", "ai"];
     const tabLabels = ["💡 ヒント", "📝 メモ", "🤖 AI"];
     const contentDivs = {};
 
-    tabContainer);
-
-    // 選択肢
-    const opts = document.createElement("div");
-    opts.className = "options-container space-y-2";
-    Object.keys(q.options).forEach(lblLabels.forEach((label, idx) => {
+    tabLabels.forEach((label, idx) => {
         const id = tabIds[idx];
-        const btn => {
-        const row = document.createElement("div");
-        row.className = "option border p-3 rounded flex justify-between";
-        row.innerHTML = `<span class="font-bold text-blue- = document.createElement("button");
+        const btn = document.createElement("button");
         btn.className = "flex-1 py-2 text-xs sm:text-sm font-medium tab-btn";
         btn.textContent = label;
         btn.onclick = (e) => {
-            Object.values(contentDivs).forEach(d => d.classList.600 mr-2">${lbl.toUpperCase()}.</span><span>${q.options[lbl]}</span>`;
-        row.onclick = () => {
-            if(opts.classList.contains("answered")) return;
-            opts.classList.add("answered");add("hidden"));
-            Array.from(tabHeader.children).forEach(b => b.classList.remove answeredCount++;
-            if(lbl===q.answer) { row.classList.add("correct"); playDoReMi(); }
-            else row.classList.add("incorrect");
-            Array.from(opts.children("active"));
-            if(contentDivs[id].classList.contains("hidden")) {
+            Object.values(contentDivs).forEach(d => d.classList.add("hidden"));
+            Array.from(tabHeader.children).forEach(b => b.classList.remove("active"));
+            if(contentDivs[id].classList.contains("hidden")) { 
                 contentDivs[id].classList.remove("hidden");
                 e.target.classList.add("active");
-            ).forEach(c => {
-                 if(c.textContent.includes(q.options[q.answer])) c.classList.add("correct");
-                 c.classList.add("answered");
-            });
-            const st = loadStats();
             }
         };
         tabHeader.appendChild(btn);
@@ -901,33 +389,102 @@ delBtn); card.appendChild(head);
     tabContainer.appendChild(tabHeader);
 
     const contentArea = document.createElement("div");
-    contentArea.className = "p-3 bg-white min-hst[q.id] = st[q.id] || {correct:0, total:0}; st-[100px]";
+    contentArea.className = "p-3 bg-white min-h-[100px]";
 
     // 1. ヒント
-    const hintDiv = document.createElement("[q.id].total++;
+    const hintDiv = document.createElement("div");
+    hintDiv.className = "hidden text-sm text-yellow-800";
+    hintDiv.innerHTML = q.hint ? `<strong>ヒント:</strong> ${q.hint}` : "ヒントはありません。";
+    contentDivs["hint"] = hintDiv; contentArea.appendChild(hintDiv);
+
+    // 2. メモ
+    const memoDiv = document.createElement("div");
+    memoDiv.className = "hidden";
+    const memoTxt = document.createElement("textarea");
+    memoTxt.className = "w-full border p-2 h-24 text-sm rounded";
+    memoTxt.placeholder = "自分用メモ...";
+    memoTxt.value = memosCache[q.id] || "";
+    memoTxt.oninput = (e) => saveMemos({...loadMemos(), [q.id]: e.target.value});
+    memoDiv.appendChild(memoTxt);
+    contentDivs["memo"] = memoDiv; contentArea.appendChild(memoDiv);
+
+    // 3. AI (チャット形式)
+    const aiDiv = document.createElement("div");
+    aiDiv.className = "hidden flex flex-col";
+    aiDiv.innerHTML = `
+        <div class="chat-log flex-grow overflow-y-auto border p-2 mb-2 bg-gray-50 rounded text-sm h-64">
+            <div class="text-center text-xs text-gray-400 mt-2">この問題についてAIと会話できます</div>
+        </div>
+        <div class="flex gap-2">
+            <button class="bg-purple-600 text-white px-4 py-1.5 rounded text-xs font-bold hover:bg-purple-700 whitespace-nowrap">送信</button>
+            <input class="flex-grow border p-2 rounded text-sm" placeholder="質問を入力...">
+        </div>
+    `;
+    const chatLog = aiDiv.querySelector(".chat-log");
+    const aiSendBtn = aiDiv.querySelector("button");
+    const aiInput = aiDiv.querySelector("input");
+
+    // チャット送信
+    const sendChat = async () => {
+        const k = localStorage.getItem(API_KEY_STORAGE);
+        if(!k) { alert("右上の「APIキー設定」からキーを保存してください"); return; }
+        const userText = aiInput.value.trim();
+        if(!userText) return;
+
+        chatLog.innerHTML += `<div class="flex justify-end mb-2"><div class="chat-bubble chat-user">${userText.replace(/\n/g,"<br>")}</div></div>`;
+        aiInput.value = "";
+        aiSendBtn.disabled = true; aiSendBtn.textContent = "...";
+        chatLog.scrollTop = chatLog.scrollHeight;
+
+        if(!chatHistories[q.id]) chatHistories[q.id] = [];
+        chatHistories[q.id].push({ role: "user", parts: [{ text: userText }] });
+
+        try {
+            const aiResp = await getAIChatResponse(q, chatHistories[q.id], k);
+            chatLog.innerHTML += `<div class="flex justify-start mb-2"><div class="chat-bubble chat-ai">${aiResp}</div></div>`;
+            chatHistories[q.id].push({ role: "model", parts: [{ text: aiResp }] });
+        } catch(e) {
+            chatLog.innerHTML += `<div class="text-red-500 text-xs">エラー: ${e.message}</div>`;
+        } finally {
+            aiSendBtn.disabled = false; aiSendBtn.textContent = "送信";
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+    };
+    aiSendBtn.onclick = sendChat;
+    aiInput.onkeydown = (e) => { if(e.key==='Enter') sendChat(); };
+
+    contentDivs["ai"] = aiDiv; contentArea.appendChild(aiDiv);
+    tabContainer.appendChild(contentArea);
+    card.appendChild(tabContainer);
+
+    const opts = document.createElement("div");
+    opts.className = "options-container space-y-2";
+    Object.keys(q.options).forEach(lbl => {
+        const row = document.createElement("div");
+        row.className = "option border p-3 rounded flex justify-between";
+        row.innerHTML = `<span class="font-bold text-blue-600 mr-2">${lbl.toUpperCase()}.</span><span>${q.options[lbl]}</span>`;
+        row.onclick = () => {
+            if(opts.classList.contains("answered")) return;
+            opts.classList.add("answered"); answeredCount++;
+            if(lbl===q.answer) { row.classList.add("correct"); playDoReMi(); }
+            else row.classList.add("incorrect");
+            Array.from(opts.children).forEach(c => {
+                 if(c.textContent.includes(q.options[q.answer])) c.classList.add("correct");
+                 c.classList.add("answered");
+            });
+            const st = loadStats();
+            st[q.id] = st[q.id] || {correct:0, total:0}; st[q.id].total++;
             if(lbl===q.answer) st[q.id].correct++;
             saveStats(st);
             exp.classList.remove("hidden");
-            if(answeredCountdiv");
-    hintDiv.className = "hidden text-sm text-yellow-800";
-    hintDiv.innerHTML = q.hint ? `<strong>ヒント:</strong> ${q.hint}` : "ヒント===currentSet.length) showResult();
+            if(answeredCount===currentSet.length) showResult();
         };
         opts.appendChild(row);
     });
     card.appendChild(opts);
 
     const exp = document.createElement("div");
-    exp.className =はありません。";
-    contentDivs["hint"] = hintDiv; contentArea.appendChild(hintDiv);
-
-    // 2. メモ
-    const memoDiv = document.createElement("div");
-    memoDiv. "explanation text-sm hidden mt-3 p-3 bg-blue-50 border-l-4 borderclassName = "hidden";
-    const memoTxt = document.createElement("textarea");
-    memoTxt.className = "w-full border p-2 h-24 text-sm rounded";
-    memoTxt.placeholder = "自分用メモ...";
-    memoTxt.value = memosCache[q.id] || "";
-    memoTxt.oninput = (e) => saveMemos({...loadMemos(), [q.id]: e.-blue-400 rounded";
+    exp.className = "explanation text-sm hidden mt-3 p-3 bg-blue-50 border-l-4 border-blue-400 rounded";
     exp.innerHTML = `<strong>解説:</strong> ${q.explanation}`;
     card.appendChild(exp);
 
@@ -938,174 +495,62 @@ delBtn); card.appendChild(head);
 function showResult() {
     let ok = 0; lastWrongIds = [];
     document.querySelectorAll('.question-card').forEach(c => {
-        if(!c.querySelector('.incorrect')) ok++; else lasttarget.value});
-    memoDiv.appendChild(memoTxt);
-    contentDivs["memo"] = memoWrongIds.push(c.dataset.id);
+        if(!c.querySelector('.incorrect')) ok++; else lastWrongIds.push(c.dataset.id);
     });
-    els.score.textContent = `${okDiv; contentArea.appendChild(memoDiv);
-
-    // 3. AI (チャット形式)
-    const aiDiv = document} / ${currentSet.length} 正解`;
+    els.score.textContent = `${ok} / ${currentSet.length} 正解`;
     els.retryWrong.classList.toggle('hidden', lastWrongIds.length===0);
     els.resultModal.classList.remove('hidden');
 }
 
-.createElement("div");
-    aiDiv.className = "hidden";
-    
-    // チャットログ表示エリア
-    const chatLog = document.createElement("div");
-    chatLog.className = "chat-container// チャット対応版API関数
 async function getAIChatResponse(q, history, key) {
-    const url = `https mb-2";
-    chatLog.innerHTML = `<div class="text-xs text-gray-400 text-center://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent?key=${key}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent?key=${key}`;
     
-    // システムプロンプト（問題の文脈）
-    const systemContext = `
-あなたは親切で mt-2">この問題についてAIと会話できます</div>`;
-    
-    // 入力エリア
-    const inputContainer知識豊富な測量士試験の講師です。
-以下の問題について、受験生と対話してください。
-
-【問題】 = document.createElement("div");
-    inputContainer.className = "flex gap-2 items-start";
-    
-    const aiInput${q.question}
+    // システムプロンプト（文脈）
+    const systemContext = `あなたは親切で知識豊富な測量士試験の講師です。以下の問題について受験生と対話してください。
+【問題】${q.question}
 【正解】${q.correctText}
-【解説】${q.explanation = document.createElement("textarea");
-    aiInput.className = "flex-grow border p-2 h-16 text-sm rounded resize}
+【解説】${q.explanation}
+指示: 正誤の理由を具体的に、かつ丁寧に解説してください。`;
 
-指示:
-・正誤の理由を具体的に説明してください。
-・励ましの言葉を添えて、丁寧に回答-none focus:ring-2 focus:ring-purple-300 outline-none";
-    aiInput.してください。
-`;
-
-    // 履歴の先頭にシステムコンテキストを追加したような構成にする
-    // Gemini APIは 'placeholder = "質問を入力してください...";
+    // 履歴のDeepCopyを作成
+    let contents = JSON.parse(JSON.stringify(history));
     
-    const aiSendBtn = document.createElement("button");
-    aiSendBtn.className = "bg-purple-600 text-white px-4 py-4 rounded text-xs font-bold hoversystem' ロールをサポートしているが、簡単のため user/model の交互チャットとして構成する
-    // :bg-purple-700 h-16 flex items-center justify-center";
-    aiSendBtn.innerHTML = "送信";
-
-    // チャット送信処理
-    const sendChat = async () => {
-        const k = localStorage.getItem(API_KEY_STORAGE);
-        if(!k) { alert("右上の「APIキー設定最初のユーザーメッセージに文脈を埋め込むアプローチをとる
-    
-    let contents = [];
-    
-」からキーを保存してください"); return; }
-        
-        const userMsg = aiInput.value.trim();
-        if(!    // 履歴の1件目（最初の質問）にシステムコンテキストを結合して送信する
-    //userMsg) return;
-
-        // ユーザーのメッセージを表示
-        addChatBubble(chatLog, userMsg, "user");
-        aiInput.value = "";
-        aiSendBtn.disabled = true;
-        aiSendBtn.innerHTML = "... これにより、AIは常に「どの問題の話をしているか」を理解する
-    if (history.length > 0) {";
-
-        // 履歴を初期化または取得
-        if (!chatHistories[q.id]) {
-            chatHistories[q
-        // Deep copy
-        contents = JSON.parse(JSON.stringify(history));
-        // 最初のメッセージ.id] = [];
-        }
-        
-        // ユーザーメッセージを履歴に追加
-        chatHistories[q.id].push({のテキストの前に文脈を付与
+    // 最初のメッセージにシステムコンテキストを結合して文脈を持たせる
+    if(contents.length > 0) {
         contents[0].parts[0].text = systemContext + "\n\n【受験生の質問】\n" + contents[0].parts[0].text;
     }
 
-    const res = await fetch( role: "user", parts: [{ text: userMsg }] });
-
-        try {
-            // AIからの応答を取得
-            const aiResponseText = await getAIResponse(q, chatHistories[q.id], k);
-            
-url, { 
-        method:'POST', 
-        headers:{'Content-Type':'application/json'},            // AIメッセージを表示
-            addChatBubble(chatLog, aiResponseText, "ai");
-            
-            // AI応答 
+    const res = await fetch(url, { 
+        method:'POST', headers:{'Content-Type':'application/json'}, 
         body:JSON.stringify({ contents: contents }) 
     });
     
     if(!res.ok) {
         const errTxt = await res.text();
-        if(res.status === 42を履歴に追加
-            chatHistories[q.id].push({ role: "model", parts: [{ text9) throw new Error("使いすぎです(制限超過)。少し待ってください。");
-        throw new Error(`API: aiResponseText }] });
-
-        } catch(e) {
-            addChatBubble(chatLog, "エラー: " + e.message, "ai");
-        } finally {
-            aiSendBtn.disabled =エラー(${res.status})`);
+        if(res.status === 429) throw new Error("使いすぎです(制限超過)。少し待ってください。");
+        throw new Error(`APIエラー(${res.status})`);
     }
     const d = await res.json();
     return (d.candidates?.[0]?.content?.parts?.[0]?.text || "エラー").replace(/\n/g,"<br>");
-} false;
-            aiSendBtn.innerHTML = "送信";
-        }
-    };
-
-    aiSendBtn
+}
 
 /* イベントリスナー */
 els.load.onclick = () => loadAndRender(false, false);
-.onclick = sendChat;
-    
-    inputContainer.appendChild(aiInput);
-    inputContainer.appendChild(els.runRaw.onclick = () => loadAndRender(false, false, true);
-els.resetRaw.onclick = () => { if(confirm("戻しますか？")) loadAndRender(false, false, falseaiSendBtn);
-    
-    aiDiv.appendChild(chatLog);
-    aiDiv.appendChild(inputContainer);
-    
-    contentDivs["ai"] = aiDiv; 
-    contentArea.appendChild(aiDiv);
-
-    tabContainer.appendChild, true); };
+els.runRaw.onclick = () => loadAndRender(false, false, true);
+els.resetRaw.onclick = () => { if(confirm("戻しますか？")) loadAndRender(false, false, false, true); };
 els.copyRaw.onclick = () => navigator.clipboard.writeText(els.raw.value).then(()=>alert("コピーしました"));
 els.retry.onclick = () => loadAndRender(true);
 els.retryWrong.onclick = () => loadAndRender(true, true);
 els.newQuiz.onclick = () => loadAndRender(false);
-els.closeModal.onclick = () => els.(contentArea);
-    card.appendChild(tabContainer);
-
-    // 選択肢
-    const opts = document.createElement("div");
-    opts.className = "options-container space-y-2";
-    resultModal.classList.add("hidden");
+els.closeModal.onclick = () => els.resultModal.classList.add("hidden");
 els.manageDel.onclick = () => { 
-    els.delList.innerHTML=loadDeleted().map(id=>`<div class="flex justify-between border p-Object.keys(q.options).forEach(lbl => {
-        const row = document.createElement("div");2"><span>${id}</span><button class="text-blue-500 text-xs" onclick="
-        row.className = "option border p-3 rounded flex justify-between";
-        row.innerHTML = `<span class="font-bold text-blue-600 mr-2">${lbl.toUpperCase()}.</span><span>restore('${id}')">復元</button></div>`).join("");
+    els.delList.innerHTML=loadDeleted().map(id=>`<div class="flex justify-between border p-2"><span>${id}</span><button class="text-blue-500 text-xs" onclick="restore('${id}')">復元</button></div>`).join("");
     els.delModal.classList.remove("hidden"); 
 };
 window.restore = (id) => { saveDeleted(loadDeleted().filter(x=>x!==id)); els.manageDel.click(); };
-els.closeDel.onclick = () =>${q.options[lbl]}</span>`;
-        row.onclick = () => {
-            if(opts.classList.contains("answered")) return;
-            opts.classList.add("answered"); answeredCount++;
-            if els.delModal.classList.add("hidden");
-els.restoreAll.onclick = () => { if((lbl===q.answer) { row.classList.add("correct"); playDoReMi(); }
-            confirm("全復元？")) { saveDeleted([]); els.manageDel.click(); }};
+els.closeDel.onclick = () => els.delModal.classList.add("hidden");
+els.restoreAll.onclick = () => { if(confirm("全復元？")) { saveDeleted([]); els.manageDel.click(); }};
 els.clearStats.onclick = () => { if(confirm("全消去？")) { localStorage.clear(); location.reload(); }};
 </script>
 </body>
 </html>
-```else row.classList.add("incorrect");
-            Array.from(opts.children).forEach(c => {
-                 if(c.textContent.includes(q.options[q.answer])) c.classList.add("correct");
-                 c.classList.add("answered");
-            });
-            const st = loadStats();

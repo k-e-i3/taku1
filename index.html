@@ -3,20 +3,23 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>択一問題システム（スマホ最適化版）</title>
+<title>択一問題システム (config分離版)</title>
+<!-- 設定ファイルの読み込み -->
+<script src="config.js"></script>
+<!-- ライブラリの読み込み -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   body { font-family: "Noto Sans JP", "Inter", sans-serif; }
-  /* アニメーション・スタイル */
+  /* クリック時のアニメーションなど */
   .option { transition: background-color .2s, border-color .2s; cursor: pointer; }
   .option:not(.answered):hover { background-color: #f0f4ff; border-color: #a3bffa; }
   .correct { background-color: #e6fffa; border-color: #38a169; color: #2f855a; font-weight: 600; }
   .incorrect { background-color: #fff5f5; border-color: #e53e3e; color: #c53030; }
   .answered { cursor: default; }
   
-  /* エリア表示 */
+  /* 解説・AIエリア等 */
   .explanation, .hint, .memo-area, .ai-area { display:none; margin-top: 0.75rem; padding: 0.75rem; border-left-width: 4px; border-radius: 0.25rem; }
   .explanation { background-color: #f7fafc; border-color: #4a5568; color: #2d3748; }
   .hint { background-color: #fffaf0; border-color: #f6e05e; color: #975a16; }
@@ -30,7 +33,7 @@
   #resultModal.hidden { display: none; }
   #deletedModal.hidden { display: none; }
   
-  /* CSVエディタ */
+  /* CSVエディタ: 自動折り返し有効 */
   .csv-editor { 
       font-family: monospace; 
       white-space: pre-wrap; 
@@ -74,7 +77,7 @@
             <div class="mt-2">
                 <textarea id="rawCsvArea" class="w-full h-48 border border-gray-300 rounded p-2 text-xs csv-editor bg-white focus:ring-2 focus:ring-blue-500" placeholder="ファイル読み込みボタンを押すとここにデータが表示されます..."></textarea>
                 <div class="flex gap-2 mt-2 justify-end items-center">
-                    <span id="editModeIndicator" class="text-xs font-bold text-red-500 hidden mr-auto">手動編集モード中</span>
+                    <span id="editModeIndicator" class="text-xs font-bold text-red-500 hidden mr-auto">※手動編集モード中（再読込で解除）</span>
                     <button id="copyRawBtn" class="bg-gray-500 text-white px-3 py-1 rounded text-xs font-bold hover:bg-gray-600">コピー</button>
                     <button id="runFromRawBtn" class="bg-teal-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-teal-700 shadow">この内容で実行</button>
                 </div>
@@ -171,11 +174,10 @@
   </div>
 
 <script>
-// =================================================================
-// ▼▼▼ 設定エリア：ここにAPIキーを入れてください ▼▼▼
-const GEMINI_API_KEY = "AIzaSyAjxxEkBy29LJon2onzQD8RlZTgBYDlHCc"; 
-const GEMINI_MODEL = "gemini-2.5-flash"; 
-// =================================================================
+/* ---------------- config.js 読み込みチェック ---------------- */
+if (typeof CONFIG === 'undefined') {
+    alert("エラー: config.js が見つかりません。\nAPIキーを設定した config.js を index.html と同じ場所に置いてください。");
+}
 
 /* ---------------- 設定 ---------------- */
 const csvFilesFallback = ["knowledge.csv", "basic.csv"]; 
@@ -190,7 +192,6 @@ const rawCsvArea = document.getElementById("rawCsvArea");
 const runFromRawBtn = document.getElementById("runFromRawBtn");
 const copyRawBtn = document.getElementById("copyRawBtn");
 const editModeIndicator = document.getElementById("editModeIndicator");
-
 const fontSizeSelect = document.getElementById("fontSizeSelect");
 const retryBtn = document.getElementById("retryBtn");
 const retryWrongBtn = document.getElementById("retryWrongBtn");
@@ -239,14 +240,8 @@ let isManualMode = false;
     opt.value = f; opt.textContent = f;
     csvSelect.appendChild(opt);
   });
-
-  // フォントサイズ変更イベント
-  fontSizeSelect.addEventListener("change", () => {
-    // 既に表示されている問題のクラスを更新
-    renderAll(currentSet); // 再描画するのが一番手っ取り早い
-  });
+  fontSizeSelect.addEventListener("change", () => renderAll(currentSet));
   
-  // キーボードショートカット
   document.addEventListener('keydown', (e) => {
     if (resultModal.classList.contains('hidden')) {
       const key = e.key;
@@ -287,26 +282,41 @@ function playDoReMi(){
   playTone(659.25, 0.28); 
 }
 
+/* ---- テキスト整形ヘルパー（改行の処理強化） ---- */
+function cleanText(str) {
+    if (!str) return "";
+    let s = str.toString().trim();
+    // 1. "邺" を <br> に
+    s = s.replaceAll("邺", "<br>");
+    // 2. 普通の改行コード (\n) も <br> に
+    s = s.replace(/\n/g, "<br>");
+    return s;
+}
+
 /* ---- CSVデータから問題オブジェクトを生成 ---- */
 function buildQuestionsFromCSV(text){
   const parsed = Papa.parse(text, { header:true, skipEmptyLines:true });
   
-  const clean = (str) => {
-    if (!str) return "";
-    return str.trim().replaceAll("邺", "<br>");
-  };
-
   return parsed.data.map((row) => {
     const id = row["ID"] || "";
     const genre = row["ジャンル"] || "未分類";
-    const qText = clean(row["問題"]);
-    const correctText = clean(row["正解"]);
-    const opt2 = clean(row["選択肢2"]);
-    const opt3 = clean(row["選択肢3"]);
-    const opt4 = clean(row["選択肢4"]);
-    const opt5 = clean(row["選択肢5"]);
-    const explanation = clean(row["解説"]);
-    const hint = clean(row["ヒント"]);
+    
+    // ここではあえて cleanText をかけず、描画直前でかける設計もあるが
+    // 検索やコピーの都合上、データ保持時点では「邺」や「\n」を保持し
+    // 描画時に変換するのがベスト。
+    // しかし、currentSetを作る時点でオブジェクトにするので、
+    // ここで変換してしまうと「コピー」時に <br> が混ざる。
+    // 今回の仕様：「コピー」は <br> -> 邺 に戻す。
+    // なので、ここで <br> に変換してしまってOKです。
+    
+    const qText = cleanText(row["問題"]);
+    const correctText = cleanText(row["正解"]);
+    const opt2 = cleanText(row["選択肢2"]);
+    const opt3 = cleanText(row["選択肢3"]);
+    const opt4 = cleanText(row["選択肢4"]);
+    const opt5 = cleanText(row["選択肢5"]);
+    const explanation = cleanText(row["解説"]);
+    const hint = cleanText(row["ヒント"]);
     
     if (!id || !qText || !correctText) return null;
 
@@ -340,7 +350,6 @@ function loadDeleted(){ try{ return JSON.parse(localStorage.getItem(DELETED_KEY)
 function saveDeleted(arr){ localStorage.setItem(DELETED_KEY, JSON.stringify(arr)); }
 function loadMemos(){ try{ return JSON.parse(localStorage.getItem(MEMO_KEY) || "{}"); }catch(e){return{}} }
 function saveMemos(obj){ localStorage.setItem(MEMO_KEY, JSON.stringify(obj)); }
-
 function shouldExclude(q, stats, minCorrect, minRate){
   const rec = stats[q.id] || { correct:0, total:0 };
   if (rec.total === 0) return false;
@@ -357,14 +366,11 @@ async function loadAndRender(isRetry = false, onlyWrong = false, useTextarea = f
   statsCache = loadStats();
   memosCache = loadMemos();
 
-  // フラグ管理
   if (useTextarea) {
       isManualMode = true;
       editModeIndicator.classList.remove('hidden');
   } else if (!isRetry) {
-     // loadBtnクリックなど、明示的にリセットの場合
-     // 呼び出し元の引数制御は下記のaddEventListenerで行っているため
-     // ここでは単純にuseTextareaがfalseならモード解除はしない（リトライなどで勝手に解除されないように）
+     // 再読込ボタン等から来た場合は通常モード
   }
 
   if (isRetry) {
@@ -394,8 +400,6 @@ async function loadAndRender(isRetry = false, onlyWrong = false, useTextarea = f
 
   try {
     let text = "";
-    
-    // マニュアルモード判定
     if (isManualMode) {
         text = rawCsvArea.value;
         if (!text.trim()) throw new Error("CSVエディタが空です。");
@@ -408,10 +412,8 @@ async function loadAndRender(isRetry = false, onlyWrong = false, useTextarea = f
     }
 
     allQuestions = buildQuestionsFromCSV(text);
-
     const genreFiltered = allQuestions.filter(q => selectedGenres.includes(q.genre));
     const filteredAll = genreFiltered.filter(q => !deletedIds.has(q.id));
-
     let candidates = filteredAll.filter(q => !shouldExclude(q, statsCache, minCorrect, minRate));
     if (candidates.length < num && filteredAll.length >= num) {
       notice.textContent = `苦手問題が${candidates.length}問しかありませんでした。学習済みの問題から補充して出題します。`;
@@ -421,7 +423,6 @@ async function loadAndRender(isRetry = false, onlyWrong = false, useTextarea = f
     }
     shuffleArray(candidates);
     currentSet = candidates.slice(0, Math.min(num, filteredAll.length));
-    
     if (currentSet.length === 0) {
         notice.textContent = "出題できる問題がありません。";
         return;
@@ -433,11 +434,9 @@ async function loadAndRender(isRetry = false, onlyWrong = false, useTextarea = f
   }
 }
 
-/* ---- 全問題カードの描画（★レイアウト修正） ---- */
+/* ---- カード描画 ---- */
 function renderAll(set){
   quizArea.innerHTML = "";
-  
-  // 現在選択されているフォントサイズクラス
   const fontClass = fontSizeSelect.value || "text-base";
 
   set.forEach((q, idx) => {
@@ -445,31 +444,20 @@ function renderAll(set){
     card.className = `bg-white p-4 sm:p-6 rounded-lg shadow-md question-card ${fontClass}`;
     card.dataset.id = q.id;
 
-    // --- ヘッダー（ID・正答数・削除ボタン）をコンパクトにまとめる ---
-    // Flexbox: [問X(青) ID(灰)] [Space] [Badge] [Delete]
+    // ヘッダー (スマホ対応コンパクト)
     const metaHeader = document.createElement("div");
     metaHeader.className = "flex flex-wrap items-center gap-2 mb-2 pb-2 border-b border-gray-100";
-
-    // 左側：問番号とID
     const titleGroup = document.createElement("div");
     titleGroup.className = "flex items-baseline gap-2";
-    titleGroup.innerHTML = `
-        <span class="font-bold text-blue-600 whitespace-nowrap">問${idx + 1}</span>
-        <span class="text-xs text-gray-400 font-mono">[${q.id}]</span>
-    `;
-
-    // 右側：ステータスバッジと削除ボタン
+    titleGroup.innerHTML = `<span class="font-bold text-blue-600 whitespace-nowrap">問${idx + 1}</span><span class="text-xs text-gray-400 font-mono">[${q.id}]</span>`;
     const controlGroup = document.createElement("div");
     controlGroup.className = "flex items-center gap-2 ml-auto";
-
     const statsBadge = document.createElement("div");
     statsBadge.className = "stats-badge text-xs font-bold px-2 py-0.5 rounded-full text-white whitespace-nowrap";
     updateStatsBadge(statsBadge, q.id);
-
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "text-red-400 hover:text-red-600 px-1 rounded";
     deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>`;
-    deleteBtn.title = "この問題を削除";
     deleteBtn.addEventListener("click", (ev) => {
       ev.stopPropagation();
       if (!confirm("この問題を削除（今後出題しない）しますか？")) return;
@@ -479,25 +467,21 @@ function renderAll(set){
       card.remove();
       if (answeredCount === currentSet.length) showResult();
     });
-
     controlGroup.appendChild(statsBadge);
     controlGroup.appendChild(deleteBtn);
-
     metaHeader.appendChild(titleGroup);
     metaHeader.appendChild(controlGroup);
     card.appendChild(metaHeader);
 
-    // --- 問題文（改行して表示） ---
+    // 問題文（HTMLタグ有効化）
     const qBody = document.createElement("div");
     qBody.className = "mb-4 font-medium leading-relaxed";
-    qBody.innerHTML = q.question;
+    qBody.innerHTML = q.question; 
     card.appendChild(qBody);
 
-    // --- ボタンエリア（ヒント・メモ・AI） ---
+    // ボタン群
     const btnGroup = document.createElement("div");
     btnGroup.className = "flex flex-wrap gap-2 mb-4";
-
-    // ヒント
     if (q.hint) {
         const hintBtn = document.createElement("button");
         hintBtn.className = "bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-semibold hover:bg-yellow-200";
@@ -505,23 +489,14 @@ function renderAll(set){
         const hintEl = document.createElement("div");
         hintEl.className = "hint text-sm";
         hintEl.innerHTML = `<strong class="font-semibold">【ヒント】</strong> ${q.hint}`;
-        
-        hintBtn.addEventListener("click", () => {
-          const isShown = hintEl.style.display === "block";
-          hintEl.style.display = isShown ? "none" : "block";
-        });
+        hintBtn.addEventListener("click", () => { hintEl.style.display = hintEl.style.display === "block" ? "none" : "block"; });
         btnGroup.appendChild(hintBtn);
         card.appendChild(hintEl);
     }
-
-    // メモ
     const memoBtn = document.createElement("button");
     const hasMemo = memosCache[q.id] && memosCache[q.id].trim().length > 0;
-    memoBtn.className = `px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-        hasMemo ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-    }`;
+    memoBtn.className = `px-3 py-1 rounded-full text-xs font-semibold transition-colors ${hasMemo ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-blue-100 text-blue-800 hover:bg-blue-200'}`;
     memoBtn.innerHTML = hasMemo ? "📝 メモあり" : "📝 自分用メモ";
-    
     const memoEl = document.createElement("div");
     memoEl.className = "memo-area";
     const memoTextarea = document.createElement("textarea");
@@ -545,27 +520,19 @@ function renderAll(set){
         memoEl.style.display = isShown ? "none" : "block";
         if (!isShown) memoTextarea.focus();
     });
-
-    // AI
     const aiBtn = document.createElement("button");
     aiBtn.className = "bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-xs font-semibold hover:bg-purple-200 transition-colors";
     aiBtn.innerHTML = "🤖 AIに聞く";
-
     const aiEl = document.createElement("div");
     aiEl.className = "ai-area";
-    aiEl.innerHTML = `
-        <div class="text-xs font-bold mb-1 text-purple-700">AIへの質問</div>
-        <textarea class="w-full p-2 border border-purple-200 rounded text-sm mb-2 h-16" placeholder="例：なぜ正解はaなの？"></textarea>
-        <button class="bg-purple-600 text-white font-bold py-1 px-3 rounded text-xs hover:bg-purple-700 w-full mb-2">送信</button>
-        <div class="ai-response text-sm text-gray-800 whitespace-pre-wrap bg-white p-2 rounded border border-purple-200 hidden"></div>
-    `;
+    aiEl.innerHTML = `<div class="text-xs font-bold mb-1 text-purple-700">AIへの質問</div><textarea class="w-full p-2 border border-purple-200 rounded text-sm mb-2 h-16" placeholder="例：なぜ正解はaなの？"></textarea><button class="bg-purple-600 text-white font-bold py-1 px-3 rounded text-xs hover:bg-purple-700 w-full mb-2">送信</button><div class="ai-response text-sm text-gray-800 whitespace-pre-wrap bg-white p-2 rounded border border-purple-200 hidden"></div>`;
     const aiTextarea = aiEl.querySelector("textarea");
     const aiSubmitBtn = aiEl.querySelector("button");
     const aiResponseDiv = aiEl.querySelector(".ai-response");
     aiSubmitBtn.addEventListener("click", async () => {
         const userQ = aiTextarea.value.trim();
         if(!userQ) { alert("質問内容を入力してください"); return; }
-        if(!GEMINI_API_KEY || GEMINI_API_KEY.includes("YOUR")) { alert("APIキーを設定してください"); return; }
+        if(typeof CONFIG === 'undefined' || !CONFIG.API_KEY || CONFIG.API_KEY.includes("YOUR")) { alert("config.js にAPIキーを設定してください"); return; }
         aiSubmitBtn.disabled = true; aiSubmitBtn.textContent = "考え中...";
         aiResponseDiv.textContent = "通信中..."; aiResponseDiv.classList.remove("hidden");
         try {
@@ -574,20 +541,13 @@ function renderAll(set){
         } catch(e) { aiResponseDiv.textContent = "エラー: " + e.message; }
         finally { aiSubmitBtn.disabled = false; aiSubmitBtn.textContent = "送信"; }
     });
-    aiBtn.addEventListener("click", () => {
-        const isShown = aiEl.style.display === "block";
-        aiEl.style.display = isShown ? "none" : "block";
-    });
+    aiBtn.addEventListener("click", () => { aiEl.style.display = aiEl.style.display === "block" ? "none" : "block"; });
+    btnGroup.appendChild(memoBtn); btnGroup.appendChild(aiBtn);
+    card.appendChild(btnGroup); card.appendChild(memoEl); card.appendChild(aiEl);
 
-    btnGroup.appendChild(memoBtn);
-    btnGroup.appendChild(aiBtn);
-    card.appendChild(btnGroup);
-    card.appendChild(memoEl);
-    card.appendChild(aiEl);
-
-    // --- 選択肢 ---
+    // 選択肢
     const optsContainer = document.createElement("div");
-    optsContainer.className = "options-container space-y-2"; // space-yを少し狭く
+    optsContainer.className = "options-container space-y-2";
     Object.keys(q.options).forEach(lbl => {
       const txt = q.options[lbl];
       const opt = document.createElement("div");
@@ -599,17 +559,14 @@ function renderAll(set){
     });
     card.appendChild(optsContainer);
 
-    // 解説
     const exp = document.createElement("div");
     exp.className = "explanation text-sm";
     exp.innerHTML = `<p><strong class="font-semibold">【解説】</strong> ${q.explanation || "（解説なし）"}</p>`;
     card.appendChild(exp);
-
     quizArea.appendChild(card);
   });
 }
 
-/* ---- ステータスバッジの更新 ---- */
 function updateStatsBadge(badge, qid) {
     const st = statsCache[qid] || { correct: 0, total: 0 };
     const rate = st.total > 0 ? (st.correct / st.total) * 100 : -1;
@@ -620,8 +577,6 @@ function updateStatsBadge(badge, qid) {
     else if (rate < 80) badge.classList.add("bg-yellow-500");
     else badge.classList.add("bg-green-500");
 }
-
-/* ---- 選択肢クリック時の処理 ---- */
 function onOptionClick(optEl, q, cardEl){
   const optsContainer = cardEl.querySelector(".options-container");
   if (optsContainer.classList.contains("answered")) return;
@@ -644,29 +599,18 @@ function onOptionClick(optEl, q, cardEl){
   if (isCorrect) stats[q.id].correct++;
   saveStats(stats);
   statsCache = stats;
-  const statsBadge = cardEl.querySelector(".stats-badge");
-  updateStatsBadge(statsBadge, q.id);
+  updateStatsBadge(cardEl.querySelector(".stats-badge"), q.id);
   if (answeredCount === currentSet.length) showResult();
 }
-
-/* ---- 結果表示処理 ---- */
 function showResult() {
-    let correctCount = 0;
-    lastWrongIds = [];
-    const cards = document.querySelectorAll('.question-card');
-    cards.forEach(card => {
+    let correctCount = 0; lastWrongIds = [];
+    document.querySelectorAll('.question-card').forEach(card => {
         const opts = card.querySelector('.options-container');
         if (opts && !opts.querySelector('.option.incorrect')) correctCount++;
         else lastWrongIds.push(card.dataset.id);
     });
-    const total = currentSet.length;
-    scoreText.textContent = `${correctCount} / ${total} 正解`;
-    let feedback = '';
-    const rate = total > 0 ? (correctCount / total) * 100 : 0;
-    if (rate === 100) feedback = '全問正解！素晴らしい！';
-    else if (rate >= 80) feedback = '合格圏内です！';
-    else feedback = '復習して苦手をなくしましょう。';
-    feedbackText.textContent = feedback;
+    scoreText.textContent = `${correctCount} / ${currentSet.length} 正解`;
+    feedbackText.textContent = correctCount === currentSet.length ? '全問正解！' : 'お疲れ様でした。';
     if (lastWrongIds.length > 0) {
         retryWrongBtn.classList.remove('hidden');
         retryWrongBtn.onclick = () => loadAndRender(true, true);
@@ -674,58 +618,34 @@ function showResult() {
     resultModal.classList.remove('hidden');
 }
 
-/* ---- AI API関数 ---- */
 async function getAIAdvice(q, userInput) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-    const prompt = `あなたは測量士試験のプロ講師です。簡潔に答えてください。\n【問題】${q.question}\n【正解】${q.correctText}\n【解説】${q.explanation}\n【質問】${userInput}`;
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    });
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${CONFIG.AI_MODEL}:generateContent?key=${CONFIG.API_KEY}`;
+    const prompt = `あなたは測量士試験のプロ講師です。\n【問題】${q.question}\n【正解】${q.correctText}\n【解説】${q.explanation}\n【質問】${userInput}\n簡潔に回答してください。`;
+    const response = await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
     if (!response.ok) throw new Error("APIエラー");
     const data = await response.json();
     return data.candidates?.[0]?.content?.parts?.[0]?.text || "エラー";
 }
-
-/* ---- ユーティリティ ---- */
 function shuffleArray(a){ for (let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
 
-/* ---- ボタンイベント設定 ---- */
-// 修正: 読込ボタンクリック時は必ず「ファイルから」モードに切り替える（isManualMode = false）
-loadBtn.addEventListener("click", () => {
-    isManualMode = false;
-    loadAndRender(false, false, false);
-});
-// 修正: エディタから実行クリック時は「マニュアル」モードに切り替える（isManualMode = true）
-runFromRawBtn.addEventListener("click", () => {
-    loadAndRender(false, false, true);
-});
-copyRawBtn.addEventListener("click", () => {
-    navigator.clipboard.writeText(rawCsvArea.value).then(()=>alert("コピーしました")).catch(()=>alert("失敗"));
-});
-
+loadBtn.addEventListener("click", () => { isManualMode = false; loadAndRender(false, false, false); });
+runFromRawBtn.addEventListener("click", () => loadAndRender(false, false, true));
+copyRawBtn.addEventListener("click", () => { navigator.clipboard.writeText(rawCsvArea.value).then(()=>alert("コピーしました")); });
 retryBtn.addEventListener("click", () => loadAndRender(true));
 newQuizBtn.addEventListener("click", () => loadAndRender(false));
 closeModalBtn.addEventListener("click", () => resultModal.classList.add("hidden"));
-clearStatsBtn.addEventListener("click", () => {
-  if (confirm("ログを消去しますか？")) { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(MEMO_KEY); location.reload(); }
-});
-showStatsBtn.addEventListener("click", () => {
-  const s = loadStats();
-  alert(`ログ: ${Object.keys(s).length}問の記録があります。\n(詳細は保存データを確認)`);
-});
+clearStatsBtn.addEventListener("click", () => { if (confirm("ログを消去しますか？")) { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(MEMO_KEY); location.reload(); } });
+showStatsBtn.addEventListener("click", () => { alert(`ログ: ${Object.keys(loadStats()).length}問`); });
 manageDeletedBtn.addEventListener("click", () => {
     deletedList.innerHTML = "";
     loadDeleted().forEach(id => {
-        const div = document.createElement("div");
-        div.className = "flex justify-between border p-2";
+        const div = document.createElement("div"); div.className = "flex justify-between border p-2";
         div.innerHTML = `<span>${id}</span><button class="text-blue-500 text-xs" onclick="restore('${id}')">復元</button>`;
         deletedList.appendChild(div);
     });
     deletedModal.classList.remove("hidden");
 });
-window.restore = (id) => { const d = loadDeleted().filter(x => x !== id); saveDeleted(d); manageDeletedBtn.click(); };
+window.restore = (id) => { saveDeleted(loadDeleted().filter(x => x !== id)); manageDeletedBtn.click(); };
 closeDeletedModal.addEventListener("click", () => deletedModal.classList.add("hidden"));
 restoreAllBtn.addEventListener("click", () => { if(confirm("全復元しますか？")) { saveDeleted([]); manageDeletedBtn.click(); }});
 importStatsBtn.addEventListener("click", () => importFile.click());
@@ -736,27 +656,24 @@ copyCsvBtn.addEventListener("click", async () => {
     const headers = ["ID","ジャンル","問題","正解","選択肢2","選択肢3","選択肢4","選択肢5","解説","ヒント"];
     let csvContent = headers.join(",") + "\n";
     filtered.forEach(q => {
-        const correctTxt = q.correctText;
-        const others = Object.values(q.options).filter(v => v !== correctTxt);
+        const others = Object.values(q.options).filter(v => v !== q.correctText);
         const escape = (s) => {
             if(!s) return "";
             let str = s.toString().replaceAll("<br>", "邺");
             if(str.includes(",") || str.includes("\"") || str.includes("\n")) return `"${str.replace(/"/g, '""')}"`;
             return str;
         };
-        csvContent += [q.id, q.genre, q.question, correctTxt, others[0]||"", others[1]||"", others[2]||"", others[3]||"", q.explanation, q.hint].map(escape).join(",") + "\n";
+        csvContent += [q.id, q.genre, q.question, q.correctText, others[0]||"", others[1]||"", others[2]||"", others[3]||"", q.explanation, q.hint].map(escape).join(",") + "\n";
     });
     await navigator.clipboard.writeText(csvContent);
     alert("コピーしました");
 });
-
 exportStatsBtn.addEventListener("click", () => {
     const blob = new Blob([JSON.stringify({ stats: loadStats(), deleted: loadDeleted(), memos: loadMemos() }, null, 2)], {type: "application/json"});
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "data.json"; a.click();
 });
 importFile.addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
         const d = JSON.parse(ev.target.result);

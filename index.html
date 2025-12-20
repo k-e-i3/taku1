@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>択一システム</title>
+<title>択一システム(年度対応版)</title>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
@@ -69,7 +69,7 @@
                 <span>📄 CSVデータ編集</span>
             </summary>
             <div class="mt-2">
-                <textarea id="rawCsvArea" class="w-full h-48 border border-gray-300 rounded p-2 text-xs csv-editor bg-white" placeholder="CSVデータ..."></textarea>
+                <textarea id="rawCsvArea" class="w-full h-48 border border-gray-300 rounded p-2 text-xs csv-editor bg-white" placeholder="ID,年度,ジャンル,問題,正解,選択肢2,選択肢3,選択肢4,選択肢5,解説,ヒント&#10;R7-1,R7,法規等,問題文...,選択肢1..."></textarea>
                 <div class="flex gap-2 mt-2 justify-end items-center">
                     <span id="editModeIndicator" class="text-xs font-bold text-red-500 hidden mr-auto">※手動収集中</span>
                     <button id="resetRawBtn" class="bg-gray-200 text-gray-700 px-3 py-1 rounded text-xs font-bold border">オリジナル読込</button>
@@ -80,12 +80,29 @@
         </details>
       </div>
 
+      <!-- ジャンルフィルター -->
       <div id="genreFilter" class="mt-3 pt-2 border-t grid grid-cols-2 sm:grid-cols-4 gap-x-2 gap-y-2">
         <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="genre-cb h-4 w-4 mr-1" value="法規等" checked>法規等</label>
         <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="genre-cb h-4 w-4 mr-1" value="基準点測量" checked>基準点測量</label>
         <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="genre-cb h-4 w-4 mr-1" value="地図・GIS" checked>地図・GIS</label>
         <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="genre-cb h-4 w-4 mr-1" value="応用測量" checked>応用測量</label>
       </div>
+
+      <!-- ▼追加: 年度フィルター -->
+      <div id="yearFilter" class="mt-2 pt-2 border-t border-dashed border-gray-300">
+        <div class="text-xs font-bold text-gray-500 mb-1">年度選択:</div>
+        <div class="grid grid-cols-4 sm:grid-cols-8 gap-2">
+            <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="year-cb h-4 w-4 mr-1" value="R7" checked>R7</label>
+            <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="year-cb h-4 w-4 mr-1" value="R6" checked>R6</label>
+            <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="year-cb h-4 w-4 mr-1" value="R5" checked>R5</label>
+            <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="year-cb h-4 w-4 mr-1" value="R4" checked>R4</label>
+            <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="year-cb h-4 w-4 mr-1" value="R3" checked>R3</label>
+            <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="year-cb h-4 w-4 mr-1" value="R2" checked>R2</label>
+            <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="year-cb h-4 w-4 mr-1" value="R1" checked>R1</label>
+            <label class="flex items-center text-xs sm:text-sm cursor-pointer"><input type="checkbox" class="year-cb h-4 w-4 mr-1" value="その他" checked>他</label>
+        </div>
+      </div>
+      <!-- ▲追加ここまで -->
 
       <div class="mt-2 pt-2 border-t">
         <details>
@@ -161,7 +178,7 @@ const csvFilesFallback = ["knowledge.csv", "basic.csv"];
 const STORAGE_KEY = "rccmDrillStats_v4_ID";
 const DELETED_KEY = "rccmDrillDeleted_v1";
 const MEMO_KEY = "rccmDrillMemos_v1";
-const SETTINGS_KEY = "rccmDrillSettings_v1"; 
+const SETTINGS_KEY = "rccmDrillSettings_v2"; // バージョンアップ
 const API_KEY_STORAGE = "rccmDrillApiKey_v1"; 
 const AI_MODEL = "gemini-2.5-flash-lite"; 
 
@@ -203,6 +220,9 @@ let chatHistories = {};
   loadUISettings();
   [els.csv, els.font, els.num, els.minCorrect, els.minRate, els.sound].forEach(e => e.addEventListener('change', saveUISettings));
   document.querySelectorAll('.genre-cb').forEach(e => e.addEventListener('change', saveUISettings));
+  // 追加: 年度の変更も保存
+  document.querySelectorAll('.year-cb').forEach(e => e.addEventListener('change', saveUISettings));
+
   els.font.addEventListener("change", () => renderAll(currentSet));
   els.raw.addEventListener('input', () => { isManualMode = true; els.indicator.classList.remove('hidden'); });
 
@@ -227,7 +247,8 @@ function saveUISettings() {
     const s = {
         csv: els.csv.value, fontSize: els.font.value, num: els.num.value,
         minCorrect: els.minCorrect.value, minRate: els.minRate.value, sound: els.sound.checked,
-        genres: Array.from(document.querySelectorAll('.genre-cb')).map(cb => ({val: cb.value, checked: cb.checked}))
+        genres: Array.from(document.querySelectorAll('.genre-cb')).map(cb => ({val: cb.value, checked: cb.checked})),
+        years: Array.from(document.querySelectorAll('.year-cb')).map(cb => ({val: cb.value, checked: cb.checked})) // 追加
     };
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
 }
@@ -239,6 +260,8 @@ function loadUISettings() {
         if(s.num) els.num.value=s.num; if(s.minCorrect) els.minCorrect.value=s.minCorrect;
         if(s.minRate) els.minRate.value=s.minRate; if(s.sound!==undefined) els.sound.checked=s.sound;
         if(s.genres) s.genres.forEach(g => { const cb=document.querySelector(`.genre-cb[value="${g.val}"]`); if(cb) cb.checked=g.checked; });
+        // 追加: 年度の復元
+        if(s.years) s.years.forEach(y => { const cb=document.querySelector(`.year-cb[value="${y.val}"]`); if(cb) cb.checked=y.checked; });
     } catch(e){}
 }
 
@@ -262,6 +285,16 @@ function buildQuestionsFromCSV(text){
   const parsed = Papa.parse(text, { header:true, skipEmptyLines:true });
   return parsed.data.map((row) => {
     const id = row["ID"] || "", genre = row["ジャンル"] || "未分類";
+    // ★追加: 年度取得ロジック
+    // 1. "年度"カラムがあればそれを使う
+    // 2. なければIDの先頭2文字(例: R1-01 -> R1)を取得して年度とみなす
+    // 3. それでも不明なら "その他"
+    let year = row["年度"];
+    if (!year) {
+        const match = id.trim().match(/^R\d+/); // R1, R10などで始まるか確認
+        year = match ? match[0] : "その他";
+    }
+
     const qText = cleanText(row["問題"]), correctText = cleanText(row["正解"]);
     if (!id || !qText || !correctText) return null;
     const rawOptions = [correctText, cleanText(row["選択肢2"]), cleanText(row["選択肢3"]), cleanText(row["選択肢4"]), cleanText(row["選択肢5"])].filter(Boolean);
@@ -269,7 +302,8 @@ function buildQuestionsFromCSV(text){
     const optionsMap = {}, labels = ["a", "b", "c", "d", "e"];
     rawOptions.forEach((opt, i) => optionsMap[labels[i]] = opt);
     return { 
-        id: id.trim(), genre: genre.trim(), question: qText, options: optionsMap, 
+        id: id.trim(), genre: genre.trim(), year: year.trim(), // yearを追加
+        question: qText, options: optionsMap, 
         answer: Object.keys(optionsMap).find(k => optionsMap[k] === correctText), 
         correctText: correctText, explanation: cleanText(row["解説"]), hint: cleanText(row["ヒント"]) 
     };
@@ -301,8 +335,12 @@ async function loadAndRender(isRetry=false, onlyWrong=false, forceManual=false, 
       renderAll(currentSet); return;
   }
 
+  // ★修正: 選択されたジャンルと年度を取得
   const genres = Array.from(document.querySelectorAll('.genre-cb:checked')).map(cb => cb.value);
+  const selectedYears = Array.from(document.querySelectorAll('.year-cb:checked')).map(cb => cb.value);
+
   if(!genres.length) { els.notice.textContent="ジャンルを選択してください"; return; }
+  if(!selectedYears.length) { els.notice.textContent="年度を選択してください"; return; }
 
   const num=parseInt(els.num.value)||10, minC=parseInt(els.minCorrect.value)||3, minR=parseFloat(els.minRate.value)||80;
   const delIds=new Set(loadDeleted());
@@ -321,7 +359,14 @@ async function loadAndRender(isRetry=false, onlyWrong=false, forceManual=false, 
     }
     
     allQuestions = buildQuestionsFromCSV(text);
-    const filtered = allQuestions.filter(q => genres.includes(q.genre) && !delIds.has(q.id));
+    
+    // ★修正: フィルタリング条件に年度を追加
+    const filtered = allQuestions.filter(q => 
+        genres.includes(q.genre) && 
+        selectedYears.includes(q.year) && 
+        !delIds.has(q.id)
+    );
+    
     let candidates = filtered.filter(q => !shouldExclude(q, statsCache, minC, minR));
     
     if(candidates.length < num && filtered.length >= num) {
@@ -332,7 +377,7 @@ async function loadAndRender(isRetry=false, onlyWrong=false, forceManual=false, 
     shuffleArray(candidates);
     currentSet = candidates.slice(0, Math.min(num, filtered.length));
     
-    if(!currentSet.length) { els.notice.textContent="出題できる問題がありません"; return; }
+    if(!currentSet.length) { els.notice.textContent="条件に合う問題がありません"; return; }
     renderAll(currentSet);
 
   } catch(err) { els.quizArea.innerHTML=`<div class="text-red-600 p-4">${err.message}</div>`; }
@@ -342,23 +387,20 @@ function renderAll(set){
   els.quizArea.innerHTML = "";
   const font = els.font.value;
   set.forEach((q, i) => {
-    // ★カード生成 (question-card クラス復活)
     const card = document.createElement("div");
     card.className = `bg-white p-4 rounded shadow question-card ${font}`;
     card.dataset.id = q.id;
     
-    // ヘッダー: 「問X [ID]」+「バッジ」+「削除ボタン」
     const head = document.createElement("div");
     head.className = "flex justify-between items-center mb-2 pb-2 border-b";
     
     const titleDiv = document.createElement("div");
-    titleDiv.innerHTML = `<span class="font-bold text-blue-600">問${i+1}</span> <span class="text-xs text-gray-400">[${q.id}]</span>`;
+    // IDの横に年度も表示すると分かりやすいので追加
+    titleDiv.innerHTML = `<span class="font-bold text-blue-600">問${i+1}</span> <span class="text-xs text-gray-500 bg-gray-100 px-1 rounded mr-1">${q.year}</span> <span class="text-xs text-gray-400">[${q.id}]</span>`;
     
-    // 右側: バッジと削除ボタン
     const rightDiv = document.createElement("div");
     rightDiv.className = "flex items-center gap-2";
     
-    // ★正答数バッジ (復活)
     const badge = document.createElement("span");
     badge.className = "stats-badge text-xs font-bold px-2 py-0.5 rounded text-white";
     updateStatsBadge(badge, q.id);
@@ -474,13 +516,13 @@ function renderAll(set){
     tabContainer.appendChild(contentArea);
     card.appendChild(tabContainer);
 
-    // 選択肢 (左寄せ・自然な配置)
+    // 選択肢
     const opts = document.createElement("div");
     opts.className = "options-container space-y-2";
     Object.keys(q.options).forEach(lbl => {
         const row = document.createElement("div");
         row.className = "option border p-3 rounded flex justify-start items-start gap-2";
-        row.dataset.label = lbl; // 正誤判定に必須
+        row.dataset.label = lbl; 
         row.innerHTML = `<span class="font-bold text-blue-600 whitespace-nowrap pt-0.5">${lbl.toUpperCase()}.</span><span>${q.options[lbl]}</span><span class="feedback-icon"></span>`;
         row.onclick = () => onOptionClick(row, q, card);
         opts.appendChild(row);
@@ -496,7 +538,6 @@ function renderAll(set){
   });
 }
 
-// ★修正: ステータスバッジ更新処理を追加
 function updateStatsBadge(badge, qid) {
     const st = statsCache[qid] || { correct: 0, total: 0 };
     const rate = st.total > 0 ? (st.correct / st.total) * 100 : -1;
@@ -508,7 +549,6 @@ function updateStatsBadge(badge, qid) {
     else badge.classList.add("bg-green-500");
 }
 
-// ★修正: クリック処理を独立関数にしてバッジ更新を組み込み
 function onOptionClick(row, q, card) {
     const opts = card.querySelector(".options-container");
     if(opts.classList.contains("answered")) return;
@@ -524,34 +564,25 @@ function onOptionClick(row, q, card) {
         c.classList.add("answered");
     });
     
-    // 統計更新
     const st = loadStats();
     st[q.id] = st[q.id] || {correct:0, total:0}; st[q.id].total++;
     if(lbl === q.answer) st[q.id].correct++;
     saveStats(st);
     statsCache = st;
-    
-    // バッジ更新
     updateStatsBadge(card.querySelector(".stats-badge"), q.id);
-    
-    // 解説表示
     card.querySelector(".explanation").classList.remove("hidden");
-    
     if(answeredCount === currentSet.length) showResult();
 }
 
 function showResult() {
     let ok = 0; lastWrongIds = [];
     document.querySelectorAll('.question-card').forEach(c => {
-        // 不正解クラスを持つ要素があれば間違えたとみなす
         if(!c.querySelector('.option.incorrect')) ok++; 
         else lastWrongIds.push(c.dataset.id);
     });
-    
     const total = currentSet.length;
     const rate = total > 0 ? Math.round((ok/total)*100) : 0;
     els.score.innerHTML = `${ok} / ${total} 正解 <span class="text-xl text-gray-500">(${rate}%)</span>`;
-    
     els.retryWrong.classList.toggle('hidden', lastWrongIds.length===0);
     els.resultModal.classList.remove('hidden');
 }
@@ -573,9 +604,7 @@ async function getAIChatResponse(q, history, key) {
         method:'POST', headers:{'Content-Type':'application/json'}, 
         body:JSON.stringify({ contents: contents }) 
     });
-    
     if(!res.ok) {
-        const errTxt = await res.text();
         if(res.status === 429) throw new Error("使いすぎです(制限超過)。少し待ってください。");
         throw new Error(`APIエラー(${res.status})`);
     }
@@ -603,3 +632,4 @@ els.clearStats.onclick = () => { if(confirm("全消去？")) { localStorage.clea
 </script>
 </body>
 </html>
+
